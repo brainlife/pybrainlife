@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os,sys,glob
 import requests
 from matplotlib import colors as mcolors
@@ -18,7 +16,7 @@ import requests
 
 ### dataframe manipulations
 ## cut nodes for profilometry / timeseries data
-def cut_nodes(data,num_nodes,dataPath,foldername,savename):
+def cut_nodes(data,num_nodes,dataPath,savename):
 
     # identify inner n nodes based on num_nodes input
     total_nodes = len(data['nodeID'].unique())
@@ -30,26 +28,28 @@ def cut_nodes(data,num_nodes,dataPath,foldername,savename):
     # replace empty spaces with nans
     data = data.replace(r'^\s+$', np.nan, regex=True)
 
-    # output data structure for records and any further analyses
-    if not os.path.exists(dataPath):
-        os.mkdir(dataPath)
+    if dataPath:
+        # output data structure for records and any further analyses
+        if not os.path.exists(dataPath):
+            os.mkdir(dataPath)
 
-    data.to_csv(dataPath+'/'+foldername+'-'+savename+'.csv',index=False)
+        data.to_csv(dataPath+'/'+foldername+'-'+savename+'.csv',index=False)
 
     return data
 
-## will compute mean dataframe
+## will compute mean dataframe 
 def compute_mean_data(dataPath,data,outname):
 
     # make mean data frame
     data_mean =  data.groupby(['subjectID','classID','structureID']).mean().reset_index()
     data_mean['nodeID'] = [ 1 for f in range(len(data_mean['nodeID'])) ]
 
-    # output data structure for records and any further analyses
-    if not os.path.exists(dataPath):
-        os.mkdir(dataPath)
+    if dataPath:
+        # output data structure for records and any further analyses
+        if not os.path.exists(dataPath):
+            os.mkdir(dataPath)
 
-    data_mean.to_csv(dataPath+outname+'.csv',index=False)
+        data_mean.to_csv(dataPath+outname+'.csv',index=False)
 
     return data_mean
 
@@ -71,17 +71,17 @@ def compute_distance(data,references_data,measures,metric):
 
 ## this function will compute simple average references for a given input data
 def compute_references(x,groupby_measures,index_measure,diff_measures):
-
+    
     # computes mean and sd of the measures in a dataframe
     references_mean = x.groupby(groupby_measures).mean().reset_index(index_measure)
     references_sd = x.groupby(groupby_measures).std().reset_index(index_measure)
     references_sd[diff_measures] = references_sd[diff_measures] * 2
-
+    
     return references_mean, references_sd
 
 ## this function calls compute_references and compute_distance to create a dataframe of distance measures
 def create_distance_dataframe(data,structures,groupby_measure,measures,dist_metric):
-
+    
     # set up output lists that we will append to
     dist = []
     subj = []
@@ -101,7 +101,7 @@ def create_distance_dataframe(data,structures,groupby_measure,measures,dist_metr
                 dist = np.append(dist,compute_distance(subj_data,references_data[0],m,'euclidean'))
             else:
                 dist = np.append(dist,compute_distance(subj_data,references_data[0],m,'emd'))
-
+            
             # append data to appropriate lists
             subj = np.append(subj,subj_data.subjectID.unique().tolist())
             meas = np.append(meas,[ m for f in range(len(subj_data.subjectID.unique().tolist())) ])
@@ -113,12 +113,12 @@ def create_distance_dataframe(data,structures,groupby_measure,measures,dist_metr
     dist_dataframe['structureID'] = struc
     dist_dataframe['measures'] = meas
     dist_dataframe['distance'] = dist
-
+    
     return dist_dataframe
 
 ## this function is useful for saving reference.jsons for a given structure
 def output_reference_json(ref_data,measures,profile,resample_points,sourceID,data_dir,filename):
-
+    
     # loop through structures in dataframe
     for st in ref_data.structureID.unique():
         # set up important measures
@@ -134,15 +134,15 @@ def output_reference_json(ref_data,measures,profile,resample_points,sourceID,dat
                 gb_frame = ref_data.loc[ref_data['structureID'] == st][['nodeID',meas]].dropna().groupby('nodeID')[meas]
             else:
                 gb_frame = ref_data.loc[ref_data['structureID'] == st][[meas]].dropna()[meas]
-
+            
             # if resample_points is a value, resamples references and computes multiple summary measures.
             # else, will just output the entire data. this second option is really only useful for non-profile/series data
             data_tmp = []
-            if resample_points:
+            if resample_points:                
                 mean_tmp = resample(gb_frame.mean().values.tolist(),resample_points).tolist()
                 min_tmp = resample(gb_frame.min().values.tolist(),resample_points).tolist()
                 max_tmp = resample(gb_frame.max().values.tolist(),resample_points).tolist()
-                sd_tmp = resample(gb_frame.std().values.tolist(),resample_points).tolist()
+                sd_tmp = resample(gb_frame.std().values.tolist(),resampSNRle_points).tolist()
                 five_tmp = resample(gb_frame.quantile(q=.05).values.tolist(),resample_points).tolist()
                 twofive_tmp = resample(gb_frame.quantile(q=.25).values.tolist(),resample_points).tolist()
                 sevenfive_tmp = resample(gb_frame.quantile(q=.75).values.tolist(),resample_points).tolist()
@@ -160,14 +160,15 @@ def output_reference_json(ref_data,measures,profile,resample_points,sourceID,dat
                 tmp[meas]['data'] = data_tmp
         reference_json.append(tmp)
 
-        with open(data_dir+'/'+filename+'_'+st+'.json','w') as ref_out_f:
-            json.dump(reference_json,ref_out_f)
-
+        if data_dir:
+            with open(data_dir+'/'+filename+'_'+st+'.json','w') as ref_out_f:
+                json.dump(reference_json,ref_out_f)
+    
     return reference_json
 
 ## this function is used to build the reference dataset removing any subjects identified as outliers. the dataframe may or may not be useful
 def build_reference_data(data,outliers,profile,data_dir,filename):
-
+    
     # set up dataframe
     reference_data = pd.DataFrame()
 
@@ -184,28 +185,29 @@ def build_reference_data(data,outliers,profile,data_dir,filename):
     if not profile:
         reference_data = reference_data.groupby(['structureID','subjectID']).mean().reset_index()
 
-    reference_data.to_csv(data_dir+'/'+filename+'.csv',index=False)
+    if data_dir:
+        reference_data.to_csv(data_dir+'/'+filename+'.csv',index=False)
 
     return reference_data
 
 ## this function will identify if a given subjects' data is an outlier based on distance from reference and a threshold percentage
 def compute_outliers(distances,threshold):
-
+    
     # set up dataframe
     outliers = pd.DataFrame()
-
+    
     # loop through structureas and measures and identify outliers based on thereshold distance
     for i in distances.structureID.unique():
         for m in distances.measures.unique():
             tmpdata = distances.loc[distances['structureID'] == i].loc[distances['measures'] == m]
             outliers = pd.concat([outliers,tmpdata[tmpdata['distance'] > np.percentile(tmpdata['distance'],threshold)]])
-
+            
     return outliers
 
 ## this function calls compute_outliers, create_distance_dataframe, and build_reference_data and output_reference_json to actually generate the outliers
 ## and final reference datasets
 def outlier_detection(data,structures,groupby_measure,measures,threshold,dist_metric,build_outliers,profile,resample_points,sourceID,data_dir,filename):
-
+    
     # set up important lists
     outliers_subjects = []
     outliers_structures = []
@@ -215,7 +217,7 @@ def outlier_detection(data,structures,groupby_measure,measures,threshold,dist_me
     # compute distances and identify outliers
     distances = create_distance_dataframe(data,structures,groupby_measure,measures,dist_metric)
     outliers_dataframe = compute_outliers(distances,threshold)
-
+    
     # if building references, build the reference data. otherwise, output a blank array
     if build_outliers:
         reference_dataframe = build_reference_data(data,outliers_dataframe,profile,data_dir,filename)
@@ -223,7 +225,7 @@ def outlier_detection(data,structures,groupby_measure,measures,threshold,dist_me
     else:
         reference_dataframe = []
         reference_json = []
-
+        
     return distances, outliers_dataframe, reference_dataframe, reference_json
 
 ## this function is useful in identifying subjects who may have had a flipped profile as compared to a reference profile.
@@ -231,7 +233,7 @@ def outlier_detection(data,structures,groupby_measure,measures,threshold,dist_me
 ## logic: if the distance of a subject's tract profile from a reference profile is positive and greater than a threshold percentage, then it's likely
 ## the data has been flipped. needs more work for all use cases. works well for easy examples like uncinate
 def profile_flip_check(data,subjects,structures,test_measure,flip_measures,dist_metric,threshold,outPath):
-
+    
     # set up important lists
     flipped_subjects = []
     flipped_structures = []
@@ -273,7 +275,7 @@ def profile_flip_check(data,subjects,structures,test_measure,flip_measures,dist_
 
     if outPath:
         output_summary.to_csv(outPath+'_flipped_profiles.csv',index=False)
-
+        
 # this function will merge the structural and diffusion data for the reference datasets
 def merge_structural_diffusion_json(data,structuralPath,diffusionPath,outPath):
     for i in data.structureID.unique():
@@ -286,34 +288,35 @@ def merge_structural_diffusion_json(data,structuralPath,diffusionPath,outPath):
 
         merged = [{**structural[0],**diffusion[0]}]
 
-        with open(outPath+'_'+i+'.json','w') as out_f:
-            json.dump(merged,out_f)
+        if outPath:
+            with open(outPath+'_'+i+'.json','w') as out_f:
+                json.dump(merged,out_f)
 
 ### adjacency-matrix related fuctions for computing network values locally
 # this function will binarize an adjacency matrix
 def binarize_matrices(data):
-
+    
     # use brain connectivity toolbox to binarize data
     bin_data = [ bct.utils.binarize(data[f]) for f in data.keys() ]
-
+    
     return bin_data
 
 # this function will threshold an adjacency matrix based on a percentage threshold of subjects with a binary 1 in that node pair
 def threshold_matrices(data,bin_data,thresholdPercentageSubjects):
-
+    
     # compute sum of matrices
     sum_mat = np.zeros(np.shape(bin_data)[1:])
-
+    
     for i in bin_data:
         sum_mat = sum_mat + i
-
+        
     # compute threshold value
     thrs = thresholdPercentageSubjects*len(bin_data)
-
+    
     # loop through data and make those nodes that dont meet threshold 0
     for i in data.keys():
         data[i][sum_mat < thrs] = 0
-
+        
     return data
 
 # this function will compute the mean within-node functional connectivity
@@ -342,17 +345,17 @@ def compute_mean_network_connectivity(data,networks,indices,out_path):
 
     if out_path:
         out_df.to_csv(out_path,index=False)
-
+        
     return out_df
 
 # this function will compute the mean network matrix
 def compute_mean_network(data):
-
+    
     mean_network = np.array(np.zeros(np.shape(data[list(data.keys())[0]])))
-
+    
     for i in data.keys():
         mean_network = mean_network + data[i]
-
+        
     mean_network = mean_network / len(data.keys())
-
+    
     return mean_network

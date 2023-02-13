@@ -24,27 +24,21 @@ Please cite the following articles when publishing papers that used data, code o
 ```
 pybrainlife
 ├── dist
-│   ├── pybrainlife-0.4.0-py3-none-any.whl
-│   └── pybrainlife-0.4.0.tar.gz
+│   ├── pybrainlife-1.0.0-py3-none-any.whl
+│   └── pybrainlife-1.0.0.tar.gz
 ├── poetry.lock
 ├── pybrainlife
 │   ├── data
 │   │   ├── collect.py
-│   │   ├── manipulate.py
-│   │   └── __pycache__
-│   │       ├── collect.cpython-38.pyc
-│   │       └── manipulate.cpython-38.pyc
+│   │   └── manipulate.py
 │   ├── __init__.py
-│   ├── __pycache__
-│   │   └── __init__.cpython-38.pyc
 │   └── vis
-│       ├── data.py
 │       ├── plots.py
 │       └── __pycache__
 │           ├── data.cpython-38.pyc
 │           └── plots.cpython-38.pyc
 ├── pyproject.toml
-├── README.rst
+├── README.md
 └── tests
     ├── __init__.py
     └── test_pybrainlife.py
