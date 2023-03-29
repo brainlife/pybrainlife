@@ -33,7 +33,7 @@ def cut_nodes(data,num_nodes,dataPath,savename):
         if not os.path.exists(dataPath):
             os.mkdir(dataPath)
 
-        data.to_csv(dataPath+'/'+foldername+'-'+savename+'.csv',index=False)
+        data.to_csv(dataPath+'/'+savename+'.csv',index=False)
 
     return data
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybrainlife"
-version = "1.0.2"
+version = "1.0.6"
 description = "This project is a collection of functions that are useful for analyzing MRI data derivatives generated on brainlife.io"
 authors = ["Brad Caron <bacaron245@gmail.com>"]
 readme = "README.md"

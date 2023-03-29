@@ -16,6 +16,17 @@ import jgf
 from scipy.signal import resample
 import requests
 
+## this will add tags and datatype tags to the data
+def add_tags_dtags(tags,dtags,data):
+    
+    if 'tags' not in data.keys():
+        data['tags'] = [ tags for f in range(len(data)) ]
+    
+    if 'datatype_tags' not in data.keys():
+        data['datatype_tags'] = [ dtags for f in range(len(data)) ]
+        
+    return data
+
 ## this will add a subjectID and sessionID column to the output data
 def add_subjects_sessions(subject,session,path,data):
     
@@ -48,7 +59,7 @@ def append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_d
     return finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags
 
 ## this function will call add_subjects_sessions to add the appropriate columns and will append the object data to a study-wide dataframe
-def compile_data(paths,subjects,sessions,data):
+def compile_data(paths,subjects,sessions,data,dtags,tags):
     # loops through all paths
     for i in range(len(paths)):
         # if network, load json. if not, load csv
@@ -62,6 +73,7 @@ def compile_data(paths,subjects,sessions,data):
                 sep = ','
             tmpdata = pd.read_csv(paths[i],sep=sep)
             tmpdata = add_subjects_sessions(subjects[i],sessions[i],paths[i],tmpdata)
+            tmpdata = add_tags_dtags(tags[i],dtags[i],tmpdata)
 
         #data = data.append(tmpdata,ignore_index=True)
         data = pd.concat([data,tmpdata])
@@ -184,7 +196,7 @@ def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj):
                         datatype_tags_to_drop = [ f for f in datatype_tags if '!' in str(f) ]
                         datatype_tag_keep = [ f for f in datatype_tags if f not in datatype_tags_to_drop ]
 
-                        ctr = check_tags_dtags(datatype_tags_keep,obj,'datatype_tags')
+                        ctr = check_tags_dtags(datatype_tag_keep,obj,'datatype_tags')
                         if ctr > 0:
                             datatype_tag_checks = check_for_filter_tags(datatype_tags_to_drop,obj,'datatype_tags')
                             if datatype_tag_checks == len(datatype_tags_to_drop):
