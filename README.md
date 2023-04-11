@@ -66,4 +66,4 @@ This package requires the following libraries.
 
 Library of Modules for Loading Data and Analyzing Data from brainlife.io
 
-2022 The University of Texas at Austin
+2023 The University of Texas at Austin
