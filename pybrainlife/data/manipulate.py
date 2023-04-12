@@ -332,7 +332,7 @@ def build_global_measures_df(network):
 
 	return global_measurements
 
-def build_temporary_network_dataframe(network,function_name,subjectID):
+def build_temporary_network_dataframe(network,function_name,subjectID,sessionID,tags,datatype_tags):
 
     if function_name == 'connectivity':
         tmp = build_connectivity_matrix(network)
@@ -342,6 +342,9 @@ def build_temporary_network_dataframe(network,function_name,subjectID):
         tmp = build_global_measures_df(network)
 
     tmp['subjectID'] = [ subjectID for f in range(len(tmp)) ]
+    tmp['sessionID'] = [ sessionID for f in range(len(tmp)) ]
+    tmp['tags'] = [ tags for f in range(len(tmp)) ]
+    tmp['datatype_tags'] = [ datatype_tags for f in range(len(tmp)) ]
 
     return tmp
 
@@ -352,13 +355,13 @@ def parse_networks(network_df):
     local_measures = pd.DataFrame()
 
     for i in range(len(network_df)):
-        connectivity_matrices = pd.concat([connectivity_matrices,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'connectivity',network_df.iloc[i]['subjectID'])])
-        global_measures = pd.concat([global_measures,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'global',network_df.iloc[i]['subjectID'])])
-        local_measures = pd.concat([local_measures,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'local',network_df.iloc[i]['subjectID'])])
+        connectivity_matrices = pd.concat([connectivity_matrices,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'connectivity',network_df.iloc[i]['subjectID'],network_df.iloc[i]['sessionID'],network_df.iloc[i]['tags'],network_df.iloc[i]['datatype_tags'])])
+        global_measures = pd.concat([global_measures,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'global',network_df.iloc[i]['subjectID'],network_df.iloc[i]['sessionID'],network_df.iloc[i]['tags'],network_df.iloc[i]['datatype_tags'])])
+        local_measures = pd.concat([local_measures,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'local',network_df.iloc[i]['subjectID'],network_df.iloc[i]['sessionID'],network_df.iloc[i]['tags'],network_df.iloc[i]['datatype_tags'])])
 
-    connectivity_matrices = connectivity_matrices.reset_index().merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID').set_index('index')
-    global_measures = global_measures.merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID')
-    local_measures = local_measures.merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID')
+    # connectivity_matrices = connectivity_matrices.reset_index().merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID').set_index('index')
+    # global_measures = global_measures.merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID')
+    # local_measures = local_measures.merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID')
 
     return connectivity_matrices, global_measures, local_measures
 
