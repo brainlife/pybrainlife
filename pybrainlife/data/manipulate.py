@@ -293,6 +293,37 @@ def merge_structural_diffusion_json(data,structuralPath,diffusionPath,outPath):
                 json.dump(merged,out_f)
 
 ### adjacency-matrix related fuctions for computing network values locally
+# this function creates a datframe for the connectivity matrix from a network.igraph object
+def build_connectivity_matrix(network,output_array=False):
+    if 'weight' in network.attributes():
+        conn_mat = pd.DataFrame(network.get_adjacency(attribute='weight').data)
+    else:
+        conn_mat = pd.DataFrame(network.get_adjacency().data)
+            
+    labels = network.get_vertex_dataframe()
+    conn_mat = conn_mat.rename(columns=labels.name,index=labels.name)
+
+    if output_array:
+        conn_mat = conn_mat.values
+
+    return conn_mat
+
+# this function will build a dataframe of the LOCAL network measures computed from a network.igraph object
+def build_local_measures_df(network):
+    local_measurements = network.get_vertex_dataframe().reset_index() #local
+    # labels = network.get_vertex_dataframe()
+    # local_measurements['name'] = labels['name']
+
+    return local_measurements
+
+# this function will build a dataframe of the GLOBAL network measures computed from a network.igraph object
+def build_global_measures_df(network):
+	global_measurements = pd.DataFrame()
+	for i in network.attributes():
+		global_measurements[i] = [network[i]]
+
+	return global_measurements
+
 # this function will binarize an adjacency matrix
 def binarize_matrices(data):
     

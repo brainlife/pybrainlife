@@ -62,18 +62,21 @@ def append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_d
 def compile_data(paths,subjects,sessions,data,dtags,tags):
     # loops through all paths
     for i in range(len(paths)):
-        # if network, load json. if not, load csv
-        if '.json.gz' in paths[i]:
-            tmpdata = pd.read_json(paths[i],orient='index').reset_index(drop=True)
-            tmpdata = add_subjects_sessions(subjects[i],sessions[i],paths[i],tmpdata)
+        # if network, use igraph and pandas. if not, use just pandas
+        if 'network.json.gz' in paths[i]:
+            # tmpdata = pd.read_json(paths[i],orient='index').reset_index(drop=True)
+            tmpdata = pd.DataFrame()
+            tmpdata['igraph'] = jgf.igraph.load(paths[i],compressed=True)
+            # tmpdata = add_subjects_sessions(subjects[i],sessions[i],paths[i],tmpdata)
+            # tmpdata = add_tags_dtags(tags[i],dtags[i],tmpdata) # added 4/12/2023
         else:
             if '.tsv' in paths[i]:
                 sep = '\t'
             else:
                 sep = ','
             tmpdata = pd.read_csv(paths[i],sep=sep)
-            tmpdata = add_subjects_sessions(subjects[i],sessions[i],paths[i],tmpdata)
-            tmpdata = add_tags_dtags(tags[i],dtags[i],tmpdata)
+        tmpdata = add_subjects_sessions(subjects[i],sessions[i],paths[i],tmpdata)
+        tmpdata = add_tags_dtags(tags[i],dtags[i],tmpdata)
 
         #data = data.append(tmpdata,ignore_index=True)
         data = pd.concat([data,tmpdata])
@@ -83,14 +86,15 @@ def compile_data(paths,subjects,sessions,data,dtags,tags):
     
     return data
 
+# NO LONGER NECESSARY
 # this function will comile network adjacency matrices into a dictionary structure
-def compile_network_adjacency_matrices(paths,subjects,sessions,data):
+# def compile_network_adjacency_matrices(paths,subjects,sessions,data):
     
-    # loop through paths and append adjacency matrix to dictionary
-    for i in range(len(paths)):
-        data[subjects[i]+'_sess'+sessions[i]] = jgf.conmat.load(paths[i],compressed=True)[0]
+#     # loop through paths and append adjacency matrix to dictionary
+#     for i in range(len(paths)):
+#         data[subjects[i]+'_sess'+sessions[i]] = jgf.conmat.load(paths[i],compressed=True)[0]
 
-    return data
+#     return data
 
 ### load data
 ## this function is useful for identifying duplicate datatypes. if it finds one, it will update the data with the latest finishing dataset.
@@ -168,7 +172,8 @@ def check_tags_dtags(tags,obj,tagOrDatatypeTag):
     return ctr
 
 ## this function is the wrapper function that calls all the prevouis functions to generate a dataframe for the entire project of the appropriate datatype
-def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj):
+# def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj): # net_adj no longer necessary
+def collect_data(datatype,datatype_tags,tags,filename,outPath):
 
     # grab path and data objects
     objects = requests.get('https://brainlife.io/api/warehouse/secondary/list/%s'%os.environ['PROJECT_ID']).json()
@@ -252,17 +257,17 @@ def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj):
         sep = ','
 
     # compile data
-    if net_adj:
-        data = {}
-        data = compile_network_adjacency_matrices(paths,subjects,sessions,data)
-        if outPath:
-            np.save(outPath,data)
-    else:
-        data = compile_data(paths,subjects,sessions,data,obj_datatype_tags,obj_tags)
+    # if net_adj:
+    #     data = {}
+    #     data = compile_network_adjacency_matrices(paths,subjects,sessions,data)
+    #     if outPath:
+    #         np.save(outPath,data)
+    # else:
+    data = compile_data(paths,subjects,sessions,data,obj_datatype_tags,obj_tags)
 
-        # output data structure for records and any further analyses
-        if outPath:
-            data.to_csv(outPath,sep=sep,index=False)
+    # output data structure for records and any further analyses
+    if outPath:
+        data.to_csv(outPath,sep=sep,index=False)
 
     return data, obj_tags, obj_datatype_tags
 
