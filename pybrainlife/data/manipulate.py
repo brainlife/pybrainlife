@@ -295,7 +295,7 @@ def merge_structural_diffusion_json(data,structuralPath,diffusionPath,outPath):
 ### adjacency-matrix related fuctions for computing network values locally
 # this function creates a datframe for the connectivity matrix from a network.igraph object
 def build_connectivity_matrix(network,output_array=False):
-    if 'weight' in network.attributes():
+    if 'weight' in network.es.attributes():
         conn_mat = pd.DataFrame(network.get_adjacency(attribute='weight').data)
     else:
         conn_mat = pd.DataFrame(network.get_adjacency().data)
@@ -308,11 +308,19 @@ def build_connectivity_matrix(network,output_array=False):
 
     return conn_mat
 
+# this function will build a dictionary in the same style as what pybrainlife.data.collect.collect_data() used to build
+def build_connectivity_matrix_dictionary(network_df):
+
+    out_dictionary = {}
+    for i in range(len(network_df[network_df.keys()[0]])):
+        network = network_df.iloc[i]['igraph']
+        out_dictionary[network_df.iloc[i]['subjectID']+'_'+network_df.iloc[i]['sessionID']+'_'.join(network_df.iloc[i]['tags'])++'_'.join(network_df.iloc[i]['datatype_tags'])] = blmanip.build_connectivity_matrix(network,output_array=True)
+
+    return out_dictionary
+
 # this function will build a dataframe of the LOCAL network measures computed from a network.igraph object
 def build_local_measures_df(network):
     local_measurements = network.get_vertex_dataframe().reset_index() #local
-    # labels = network.get_vertex_dataframe()
-    # local_measurements['name'] = labels['name']
 
     return local_measurements
 

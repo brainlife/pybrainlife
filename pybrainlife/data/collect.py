@@ -15,6 +15,7 @@ import bct
 import jgf
 from scipy.signal import resample
 import requests
+import igraph
 
 ## this will add tags and datatype tags to the data
 def add_tags_dtags(tags,dtags,data):
