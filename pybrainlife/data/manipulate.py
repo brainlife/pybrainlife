@@ -314,7 +314,7 @@ def build_connectivity_matrix_dictionary(network_df):
     out_dictionary = {}
     for i in range(len(network_df[network_df.keys()[0]])):
         network = network_df.iloc[i]['igraph']
-        out_dictionary[network_df.iloc[i]['subjectID']+'_'+network_df.iloc[i]['sessionID']+'_'.join(network_df.iloc[i]['tags'])++'_'.join(network_df.iloc[i]['datatype_tags'])] = blmanip.build_connectivity_matrix(network,output_array=True)
+        out_dictionary['subject_'+network_df.iloc[i]['subjectID']+'-session_'+network_df.iloc[i]['sessionID']+'-tags_'+'_'.join(network_df.iloc[i]['tags'])+'-datatype_tags_'+'_'.join(network_df.iloc[i]['datatype_tags'])] = build_connectivity_matrix(network,output_array=True)
 
     return out_dictionary
 
@@ -331,6 +331,36 @@ def build_global_measures_df(network):
 		global_measurements[i] = [network[i]]
 
 	return global_measurements
+
+def build_temporary_network_dataframe(network,function_name,subjectID):
+
+    if function_name == 'connectivity':
+        tmp = build_connectivity_matrix(network)
+    elif function_name == 'local':
+        tmp = build_local_measures_df(network)
+    else:
+        tmp = build_global_measures_df(network)
+
+    tmp['subjectID'] = [ subjectID for f in range(len(tmp)) ]
+
+    return tmp
+
+def parse_networks(network_df):
+
+    connectivity_matrices = pd.DataFrame()
+    global_measures = pd.DataFrame()
+    local_measures = pd.DataFrame()
+
+    for i in range(len(network_df)):
+        connectivity_matrices = pd.concat([connectivity_matrices,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'connectivity',network_df.iloc[i]['subjectID'])])
+        global_measures = pd.concat([global_measures,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'global',network_df.iloc[i]['subjectID'])])
+        local_measures = pd.concat([local_measures,build_temporary_network_dataframe(network_df.iloc[i]['igraph'],'local',network_df.iloc[i]['subjectID'])])
+
+    connectivity_matrices = connectivity_matrices.reset_index().merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID').set_index('index')
+    global_measures = global_measures.merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID')
+    local_measures = local_measures.merge(network_df[['subjectID','sessionID','tags','datatype_tags']],on='subjectID')
+
+    return connectivity_matrices, global_measures, local_measures
 
 # this function will binarize an adjacency matrix
 def binarize_matrices(data):
