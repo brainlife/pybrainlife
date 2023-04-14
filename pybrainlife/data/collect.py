@@ -29,7 +29,7 @@ def add_tags_dtags(tags,dtags,data):
     return data
 
 ## this will add a subjectID and sessionID column to the output data
-def add_subjects_sessions(subject,session,path,data):
+def add_subjects_sessions(subject,session,data):
     
     if 'subjectID' not in data.keys():
         data['subjectID'] = [ str(subject) for f in range(len(data)) ]
@@ -39,28 +39,39 @@ def add_subjects_sessions(subject,session,path,data):
         
     return data
 
+## this will add a finish date column to the output data
+def add_finish_dates(finish_date,data):
+    
+    if 'finish_dates' not in data.keys():
+        data['finish_dates'] = [ finish_date for f in range(len(data)) ]
+        
+    return data
+
 ## this function calles check_for_duplicates and attempts to find duplicates. then uses that output, sets a dumby sessionID if not present,
 ## and appends the object data
-def append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_datatype_tags):
+def append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_datatype_tags,duplicates):
         
     # check for duplicates. if so, remove
-    finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags = check_for_duplicates(obj,finish_dates,subjects,sessions,paths,obj_tags,obj_datatype_tags)
+    skip = 0
+    if duplicates:
+        finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags, skip = check_for_duplicates(obj,finish_dates,subjects,sessions,paths,obj_tags,obj_datatype_tags)
 
-    # append data to appropriate lists
-    subjects = np.append(subjects,str(obj['output']['meta']['subject']))
-    if 'session' in obj['output']['meta'].keys():
-        sessions = np.append(sessions,obj['output']['meta']['session'])
-    else:
-        sessions = np.append(sessions,'1')
-    paths = np.append(paths,"input/"+obj["path"]+"/"+filename)
-    finish_dates = np.append(finish_dates,obj['finish_date'])
-    obj_datatype_tags = obj_datatype_tags + [obj['output']['datatype_tags']]
-    obj_tags = obj_tags + [obj['output']['tags']]
+    if skip == 0:
+        # append data to appropriate lists
+        subjects = np.append(subjects,str(obj['output']['meta']['subject']))
+        if 'session' in obj['output']['meta'].keys():
+            sessions = np.append(sessions,obj['output']['meta']['session'])
+        else:
+            sessions = np.append(sessions,'1')
+        paths = np.append(paths,"input/"+obj["path"]+"/"+filename)
+        finish_dates = np.append(finish_dates,obj['finish_date'])
+        obj_datatype_tags = obj_datatype_tags + [obj['output']['datatype_tags']]
+        obj_tags = obj_tags + [obj['output']['tags']]
     
     return finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags
 
 ## this function will call add_subjects_sessions to add the appropriate columns and will append the object data to a study-wide dataframe
-def compile_data(paths,subjects,sessions,data,dtags,tags):
+def compile_data(paths,subjects,sessions,data,dtags,tags,finish_dates):
     # loops through all paths
     for i in range(len(paths)):
         # if network, use igraph and pandas. if not, use just pandas
@@ -76,8 +87,9 @@ def compile_data(paths,subjects,sessions,data,dtags,tags):
             else:
                 sep = ','
             tmpdata = pd.read_csv(paths[i],sep=sep)
-        tmpdata = add_subjects_sessions(subjects[i],sessions[i],paths[i],tmpdata)
+        tmpdata = add_subjects_sessions(subjects[i],sessions[i],tmpdata)
         tmpdata = add_tags_dtags(tags[i],dtags[i],tmpdata)
+        tmpdata = add_finish_dates(finish_dates[i],tmpdata)
 
         #data = data.append(tmpdata,ignore_index=True)
         data = pd.concat([data,tmpdata])
@@ -104,7 +116,7 @@ def check_for_duplicates(obj,finish_dates,subjects,sessions,paths,obj_tags,obj_d
     # first checks if there is a session id available in the keys of the object. if finds one, then checks if the subject and session ID 
     # were already looped over. if so, will delete position in list and update with appropriate path. if it doesn't find a session ID, it
     # just attempts to find if the subject has already been looped over
-    
+    skip=0
     if 'session' in obj['output']['meta'].keys():
         if (obj['output']['meta']['subject'] in subjects) and (obj['output']['meta']['session'] in sessions):
             index = np.where(np.logical_and(subjects == obj['output']['meta']['subject'],sessions == obj['output']['meta']['session']))
@@ -121,12 +133,13 @@ def check_for_duplicates(obj,finish_dates,subjects,sessions,paths,obj_tags,obj_d
     
     if index_identified == True:
         if len(index[0]) > 1:
-            finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags = remove_duplicates(index,obj,subjects,sessions,paths,finish_dates,obj_tags,obj_datatype_tags)
+            finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags, skip = remove_duplicates(index,obj,subjects,sessions,paths,finish_dates,obj_tags,obj_datatype_tags)
 
-    return finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags
+    return finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags, skip
 
 def remove_duplicates(index,obj,subjects,sessions,paths,finish_dates,obj_tags,obj_datatype_tags):
     
+    skip = 0
     # are the datatype tags the same
     tmp_datatype_tags = [ obj_datatype_tags[f] for f in list(index[0]) ]
     duplicate_datatype_tags_index = [ index[0][f] for f in range(len(list(index[0]))) if tmp_datatype_tags[f] == obj['output']['datatype_tags'] ]
@@ -148,8 +161,18 @@ def remove_duplicates(index,obj,subjects,sessions,paths,finish_dates,obj_tags,ob
     # if yes to both above, check for finish dates
     if duplicate_tags == True and duplicate_datatype_tags == True:
         duplicate_index = list(set(duplicate_tags_index) & set(duplicate_datatype_tags_index))
+        if obj['finish_date'] >= finish_dates[duplicate_index]:
+            finish_dates = np.delete(finish_dates,duplicate_index)
+            subjects = np.delete(subjects,duplicate_index)
+            sessions = np.delete(sessions,duplicate_index)
+            paths = np.delete(paths,duplicate_index)
+            del obj_tags[duplicate_index[0]]
+            del obj_datatype_tags[duplicate_index[0]]
+            skip = 0
+        else:
+            skip = 1
             
-    return finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags
+    return finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags, skip
     
 # this will check to see if the datatype tags or tags of the datatype object exists within the filtered ('!') tags
 def check_for_filter_tags(input_tags,obj,tagOrDatatypeTag):
@@ -174,7 +197,7 @@ def check_tags_dtags(tags,obj,tagOrDatatypeTag):
 
 ## this function is the wrapper function that calls all the prevouis functions to generate a dataframe for the entire project of the appropriate datatype
 # def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj): # net_adj no longer necessary
-def collect_data(datatype,datatype_tags,tags,filename,outPath):
+def collect_data(datatype,datatype_tags,tags,filename,outPath,duplicates=False):
 
     # grab path and data objects
     objects = requests.get('https://brainlife.io/api/warehouse/secondary/list/%s'%os.environ['PROJECT_ID']).json()
@@ -249,8 +272,7 @@ def collect_data(datatype,datatype_tags,tags,filename,outPath):
                 tag_filter = True
 
             if datatype_tag_filter == True & tag_filter == True:
-                finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags = append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_datatype_tags)
-
+                finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags = append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_datatype_tags,duplicates)
     # check if tab separated or comma separated by looking at input filename
     if '.tsv' in filename:
         sep = '\t'
@@ -264,7 +286,7 @@ def collect_data(datatype,datatype_tags,tags,filename,outPath):
     #     if outPath:
     #         np.save(outPath,data)
     # else:
-    data = compile_data(paths,subjects,sessions,data,obj_datatype_tags,obj_tags)
+    data = compile_data(paths,subjects,sessions,data,obj_datatype_tags,obj_tags,finish_dates)
 
     # output data structure for records and any further analyses
     if outPath:
