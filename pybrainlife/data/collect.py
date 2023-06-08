@@ -198,99 +198,104 @@ def check_tags_dtags(tags,obj,tagOrDatatypeTag):
 ## this function is the wrapper function that calls all the prevouis functions to generate a dataframe for the entire project of the appropriate datatype
 # def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj): # net_adj no longer necessary
 def collect_data(datatype,datatype_tags,tags,filename,outPath,duplicates=False):
+    
+    if datatype in ['cortex_example','tractmeasures_example']:
+        data = pd.read_csv('./sample-data/'+datatype.replace('_example','')+'.csv')
+        obj_tags = ['example_data']
+        obj_datatype_tags = ['example_data']
+    else:
+        # grab path and data objects
+        objects = requests.get('https://brainlife.io/api/warehouse/secondary/list/%s'%os.environ['PROJECT_ID']).json()
 
-    # grab path and data objects
-    objects = requests.get('https://brainlife.io/api/warehouse/secondary/list/%s'%os.environ['PROJECT_ID']).json()
+        # subjects and paths
+        subjects = []
+        sessions = []
+        paths = []
+        finish_dates = []
+        obj_datatype_tags = []
+        obj_tags = []
 
-    # subjects and paths
-    subjects = []
-    sessions = []
-    paths = []
-    finish_dates = []
-    obj_datatype_tags = []
-    obj_tags = []
+        # set up output
+        data = pd.DataFrame()
 
-    # set up output
-    data = pd.DataFrame()
+        # loop through objects and find appropriate objects based on datatype, datatype_tags, and tags. can include drop tags ('!'). this logic could probably be simplified
+        for obj in objects:
+            if obj['datatype']['name'] == datatype:
+                # if datatype_tags is set, identify data using this info. if not, just use tag data. if no tags either, just append if meets datatype criteria. will check for filter with a not tag (!)
+                if datatype_tags:
+                    # if the input datatype_tags are included in the object's datatype_tags, look for appropriate tags. if no tags, just append
+                    if 'datatype_tags' in list(obj['output'].keys()) and len(obj['output']['datatype_tags']) != 0:
+                        ctr=0
+                        if '!' in str(datatype_tags):
+                            datatype_tags_to_drop = [ f for f in datatype_tags if '!' in str(f) ]
+                            datatype_tag_keep = [ f for f in datatype_tags if f not in datatype_tags_to_drop ]
 
-    # loop through objects and find appropriate objects based on datatype, datatype_tags, and tags. can include drop tags ('!'). this logic could probably be simplified
-    for obj in objects:
-        if obj['datatype']['name'] == datatype:
-            # if datatype_tags is set, identify data using this info. if not, just use tag data. if no tags either, just append if meets datatype criteria. will check for filter with a not tag (!)
-            if datatype_tags:
-                # if the input datatype_tags are included in the object's datatype_tags, look for appropriate tags. if no tags, just append
-                if 'datatype_tags' in list(obj['output'].keys()) and len(obj['output']['datatype_tags']) != 0:
-                    ctr=0
-                    if '!' in str(datatype_tags):
-                        datatype_tags_to_drop = [ f for f in datatype_tags if '!' in str(f) ]
-                        datatype_tag_keep = [ f for f in datatype_tags if f not in datatype_tags_to_drop ]
-
-                        ctr = check_tags_dtags(datatype_tag_keep,obj,'datatype_tags')
-                        if ctr > 0:
-                            datatype_tag_checks = check_for_filter_tags(datatype_tags_to_drop,obj,'datatype_tags')
-                            if datatype_tag_checks == len(datatype_tags_to_drop):
-                                datatype_tag_filter = True
+                            ctr = check_tags_dtags(datatype_tag_keep,obj,'datatype_tags')
+                            if ctr > 0:
+                                datatype_tag_checks = check_for_filter_tags(datatype_tags_to_drop,obj,'datatype_tags')
+                                if datatype_tag_checks == len(datatype_tags_to_drop):
+                                    datatype_tag_filter = True
+                                else:
+                                    datatype_tag_filter = False
                             else:
                                 datatype_tag_filter = False
                         else:
-                            datatype_tag_filter = False
+                            ctr = check_tags_dtags(datatype_tags,obj,'datatype_tags')
+                            if ctr > 0:
+                                datatype_tag_filter = True
+                            else:
+                                datatype_tag_filter = False
                     else:
-                        ctr = check_tags_dtags(datatype_tags,obj,'datatype_tags')
-                        if ctr > 0:
-                            datatype_tag_filter = True
-                        else:
-                            datatype_tag_filter = False
+                        datatype_tag_filter = False
                 else:
-                    datatype_tag_filter = False
-            else:
-                datatype_tag_filter = True
+                    datatype_tag_filter = True
 
-            if tags:
-                if 'tags' in list(obj['output'].keys()) and len(obj['output']['tags']) != 0:
-                    ctr = 0
-                    if '!' in str(tags):
-                        tags_drop = [ f for f in tags if '!' in str(f) ]
-                        tags_keep = [ f for f in tags if f not in tags_drop ]
-                        ctr = check_tags_dtags(tags_keep,obj,'tags')
-                        if ctr > 0:
-                            tag_checks = check_for_filter_tags(tags_drop,obj,'tags')
-                            if tag_checks == len(tags_drop):
-                                tag_filter = True
+                if tags:
+                    if 'tags' in list(obj['output'].keys()) and len(obj['output']['tags']) != 0:
+                        ctr = 0
+                        if '!' in str(tags):
+                            tags_drop = [ f for f in tags if '!' in str(f) ]
+                            tags_keep = [ f for f in tags if f not in tags_drop ]
+                            ctr = check_tags_dtags(tags_keep,obj,'tags')
+                            if ctr > 0:
+                                tag_checks = check_for_filter_tags(tags_drop,obj,'tags')
+                                if tag_checks == len(tags_drop):
+                                    tag_filter = True
+                                else:
+                                    tag_filter = False
                             else:
                                 tag_filter = False
                         else:
-                            tag_filter = False
+                            ctr = check_tags_dtags(tags,obj,'tags')
+                            if ctr > 0:
+                                tag_filter = True
+                            else:
+                                tag_filter = False
                     else:
-                        ctr = check_tags_dtags(tags,obj,'tags')
-                        if ctr > 0:
-                            tag_filter = True
-                        else:
-                            tag_filter = False
+                        tag_filter = False
                 else:
-                    tag_filter = False
-            else:
-                tag_filter = True
+                    tag_filter = True
 
-            if datatype_tag_filter == True & tag_filter == True:
-                finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags = append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_datatype_tags,duplicates)
-    # check if tab separated or comma separated by looking at input filename
-    if '.tsv' in filename:
-        sep = '\t'
-    else:
-        sep = ','
+                if datatype_tag_filter == True & tag_filter == True:
+                    finish_dates, subjects, sessions, paths, obj_tags, obj_datatype_tags = append_data(subjects,sessions,paths,finish_dates,obj,filename,obj_tags,obj_datatype_tags,duplicates)
+        # check if tab separated or comma separated by looking at input filename
+        if '.tsv' in filename:
+            sep = '\t'
+        else:
+            sep = ','
 
-    # compile data
-    # if net_adj:
-    #     data = {}
-    #     data = compile_network_adjacency_matrices(paths,subjects,sessions,data)
-    #     if outPath:
-    #         np.save(outPath,data)
-    # else:
-    data = compile_data(paths,subjects,sessions,data,obj_datatype_tags,obj_tags,finish_dates)
+        # compile data
+        # if net_adj:
+        #     data = {}
+        #     data = compile_network_adjacency_matrices(paths,subjects,sessions,data)
+        #     if outPath:
+        #         np.save(outPath,data)
+        # else:
+        data = compile_data(paths,subjects,sessions,data,obj_datatype_tags,obj_tags,finish_dates)
 
-    # output data structure for records and any further analyses
-    if outPath:
-        data.to_csv(outPath,sep=sep,index=False)
+        # output data structure for records and any further analyses
+        if outPath:
+            data.to_csv(outPath,sep=sep,index=False)
 
     return data, obj_tags, obj_datatype_tags
 
