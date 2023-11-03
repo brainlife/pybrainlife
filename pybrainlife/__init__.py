@@ -1,1 +1,6 @@
-__version__ = '0.1.0'
+try:
+    import importlib.metadata as importlib_metadata
+except ModuleNotFoundError:
+    import importlib_metadata
+
+__version__ = importlib_metadata.version(__package__ or __name__)
