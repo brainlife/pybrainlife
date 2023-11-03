@@ -4,11 +4,12 @@
 This repository contains the python package for collecting, collating, manipulating, analyzing, and visualizing MRI data generated on brainlife.io. Designed to used within the brainlife.io Analysis tab Jupyter notebooks, can be installed as a pypi package to your local machine.
 
 ### Authors
-- Brad Caron (bacaron@iu.edu)
+- Brad Caron (bacaron@utexas.edu)
 
 ### Contributors
-- Soichi Hayashi (hayashi@iu.edu)
-- Franco Pestilli (franpest@indiana.edu)
+- Anibal Heinsfeld (anibalsolon@utexas.edu)
+- Soichi Hayashi (hayashi@utexas.edu)
+- Franco Pestilli (pestilli@utexas.edu)
 
 ### Funding
 [![NSF-BCS-1734853](https://img.shields.io/badge/NSF_BCS-1734853-blue.svg)](https://nsf.gov/awardsearch/showAward?AWD_ID=1734853)
