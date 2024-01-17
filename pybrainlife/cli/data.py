@@ -41,125 +41,125 @@ def run(args, unknown):
 
 def run_upload(args, unknown):
 
-        datatypes = datatype_query(search=args.datatype)
-        if not datatypes:
-            print(f"No datatypes found for {args.datatype}")
+    datatypes = datatype_query(search=args.datatype)
+    if not datatypes:
+        print(f"No datatypes found for {args.datatype}")
+        return 1
+
+    datatype = datatypes[0]
+
+    # TODO better help message
+    parser = argparse.ArgumentParser(add_help=False)
+    for file in datatype.files:
+        filetype = {'f': 'file', 'd': 'directory'}[file.type]
+        parser.add_argument(
+            f"--{file.field}", help=f"{file.name} ({filetype})",
+            required=file.required
+        )
+    files_args = parser.parse_args(unknown)
+
+    tags = args.tag or []
+    datatype_tags = args.datatype_tag or []
+    description = args.description
+
+    metadata = {}
+    if args.meta:
+        with open(args.meta) as fp:
+            metadata = json.load(fp)
+    if args.subject:
+        metadata["subject"] = args.subject
+    if args.session:
+        metadata["session"] = args.session
+    if args.run:
+        metadata["run"] = args.run
+        tags += [f"run-{args.run}"]
+
+    project = project_query(args.project)
+    if not project:
+        print(f"No project found for {args.project}")
+        return 1
+    else:
+        project = project[0]
+
+    instance_name = f"upload.{project.group}"
+    instances = instance_query(name=instance_name)
+    if instances:
+        instance = instances[0]
+    else:
+        instance = instance_create(instance_name, project=project)
+
+    task = task_run(instance.id, instance_name, "brainlife/app-noop", {})
+    task_wait(task.id)
+
+    stream_fp = io.BytesIO()
+    tar = tarfile.TarFile.open(None, 'w|gz', stream_fp)
+
+    for file in datatype.files:
+
+        if not file.field in files_args:
+            continue
+
+        filepath = getattr(files_args, file.field)
+
+        if file.type == 'd' and not os.path.isdir(filepath):
+            print(f"{file.field} is not a directory")
             return 1
 
-        datatype = datatypes[0]
-
-        # TODO better help message
-        parser = argparse.ArgumentParser(add_help=False)
-        for file in datatype.files:
-            filetype = {'f': 'file', 'd': 'directory'}[file.type]
-            parser.add_argument(
-                f"--{file.field}", help=f"{file.name} ({filetype})",
-                required=file.required
-            )
-        files_args = parser.parse_args(unknown)
-
-        tags = args.tag or []
-        datatype_tags = args.datatype_tag or []
-        description = args.description
-
-        metadata = {}
-        if args.meta:
-            with open(args.meta) as fp:
-                metadata = json.load(fp)
-        if args.subject:
-            metadata["subject"] = args.subject
-        if args.session:
-            metadata["session"] = args.session
-        if args.run:
-            metadata["run"] = args.run
-            tags += [f"run-{args.run}"]
-
-        project = project_query(args.project)
-        if not project:
-            print(f"No project found for {args.project}")
+        if file.type == 'f' and not os.path.isfile(filepath):
+            print(f"{file.field} is not a file")
             return 1
+
+        if file.type == 'd':
+            filepath = filepath.rstrip('/')
+            for dir, _, files in os.walk(filepath):
+                tardir = dir.replace(filepath, file.name)
+
+                for f in files:
+                    subfilepath = f'{dir}/{f}'
+                    tarsubfilepath = f'{tardir}/{f}'
+                    tar.add(subfilepath, arcname=tarsubfilepath)
         else:
-            project = project[0]
+            tarfilepath = file.name
+            tar.add(filepath, arcname=tarfilepath)
 
-        instance_name = f"upload.{project.group}"
-        instances = instance_query(name=instance_name)
-        if instances:
-            instance = instances[0]
-        else:
-            instance = instance_create(instance_name, project=project)
+    tar.close()
+    stream_fp.seek(0)
 
-        task = task_run(instance.id, instance_name, "brainlife/app-noop", {})
-        task_wait(task.id)
+    res = requests.post(
+        services["amaretti"] + f"/task/upload/{task.id}",
+        params={
+            "p": "upload/upload.tar.gz",
+            "untar": True,
+        },
+        data=stream_fp,
+        headers={**auth_header()},
+    )
 
-        stream_fp = io.BytesIO()
-        tar = tarfile.TarFile.open(None, 'w|gz', stream_fp)
+    if res.status_code != 200:
+        raise Exception(res.json()["message"])
 
-        for file in datatype.files:
+    res = requests.post(
+        services["warehouse"] + "/dataset/finalize-upload",
+        json={
+            "task": task.id,
+            "datatype": datatype.id,
+            "subdir": "upload",
+            "fileids": list(files_args.__dict__.keys()),
+            "datatype_tags": datatype_tags,
+            "meta": metadata,
+            "tags": tags,
+            "desc": description,
+        },
+        headers={**auth_header()},
+    )
+    upload_data = res.json()
 
-            if not file.field in files_args:
-                continue
+    if "validator_task" in upload_data:
+        datasets = task_wait(upload_data["validator_task"]["_id"])
+    else:
+        datasets = task_wait_dataset(task.id)
 
-            filepath = getattr(files_args, file.field)
+    for dataset in datasets:
+        print(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
 
-            if file.type == 'd' and not os.path.isdir(filepath):
-                print(f"{file.field} is not a directory")
-                return 1
-
-            if file.type == 'f' and not os.path.isfile(filepath):
-                print(f"{file.field} is not a file")
-                return 1
-
-            if file.type == 'd':
-                filepath = filepath.rstrip('/')
-                for dir, _, files in os.walk(filepath):
-                    tardir = dir.replace(filepath, file.name)
-
-                    for f in files:
-                        subfilepath = f'{dir}/{f}'
-                        tarsubfilepath = f'{tardir}/{f}'
-                        tar.add(subfilepath, arcname=tarsubfilepath)
-            else:
-                tarfilepath = file.name
-                tar.add(filepath, arcname=tarfilepath)
-
-        tar.close()
-        stream_fp.seek(0)
-
-        res = requests.post(
-            services["amaretti"] + f"/task/upload/{task.id}",
-            params={
-                "p": "upload/upload.tar.gz",
-                "untar": True,
-            },
-            data=stream_fp,
-            headers={**auth_header()},
-        )
-
-        if res.status_code != 200:
-            raise Exception(res.json()["message"])
-
-        res = requests.post(
-            services["warehouse"] + "/dataset/finalize-upload",
-            json={
-                "task": task.id,
-                "datatype": datatype.id,
-                "subdir": "upload",
-                "fileids": list(files_args.__dict__.keys()),
-                "datatype_tags": datatype_tags,
-                "meta": metadata,
-                "tags": tags,
-                "desc": description,
-            },
-            headers={**auth_header()},
-        )
-        upload_data = res.json()
-
-        if "validator_task" in upload_data:
-            datasets = task_wait(upload_data["validator_task"]["_id"])
-        else:
-            datasets = task_wait_dataset(task.id)
-
-        for dataset in datasets:
-            print(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
-
-        return 0
+    return 0
