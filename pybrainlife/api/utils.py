@@ -28,6 +28,9 @@ def nested_dataclass(*args, **kwargs):
                     field_type = field_type.__args__[0]
                     new_obj = [field_type(**v) for v in value]
                     valid_kwargs[name] = new_obj
+                elif is_dataclass(field_type):
+                    new_obj = field_type(value)
+                    valid_kwargs[name] = new_obj
                 else:
                     valid_kwargs[name] = value
 
@@ -37,3 +40,16 @@ def nested_dataclass(*args, **kwargs):
         return cls
 
     return wrapper(args[0]) if args else wrapper
+
+
+def hydrate(fn):
+    def wrapper(cls):
+        original_init = cls.__init__
+        def __init__(self, *args, **kwargs):
+            if len(args) == 1 and is_id(args[0]) and not kwargs:
+                kwargs = fn(args[0])
+            original_init(self, **kwargs)
+        cls.__init__ = __init__
+        return cls
+        
+    return wrapper

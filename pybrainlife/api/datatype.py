@@ -1,12 +1,54 @@
 from dataclasses import dataclass
 
-import re
 import json
-from typing import List
+from typing import List, Optional
 import requests
 
 from .api import auth_header, services
-from .utils import is_id, nested_dataclass
+from .utils import is_id, nested_dataclass, hydrate
+
+
+def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List['DataType']:
+
+    query = {}
+
+    if search:
+        if is_id(search):
+            query["_id"] = search
+        else:
+            query["name"] = search
+    else:
+        if id:
+            query["_id"] = id
+        if name:
+            query["name"] = name
+
+    url = services["warehouse"] + "/datatype"
+    res = requests.get(
+        url,
+        params={
+            "find": json.dumps(query),
+            "sort": "name",
+            "skip": skip,
+            "limit": limit,
+        },
+        headers={**auth_header()},
+    )
+
+    if res.status_code == 404:
+        return []
+
+    if res.status_code != 200:
+        raise Exception(res.json()["message"])
+    
+    return DataType.normalize(res.json()["datatypes"])
+
+
+def datatype_fetch(id) -> Optional['DataType']:
+    datatypes = datatype_query(id=id, limit=1)
+    if len(datatypes) == 0:
+        return None
+    return datatypes[0]
 
 
 @nested_dataclass
@@ -21,7 +63,7 @@ class DataTypeFile:
     @staticmethod
     def normalize(data):
         if isinstance(data, list):
-            return [DataType.normalize(d) for d in data]
+            return [DataTypeFile.normalize(d) for d in data]
         data["field"] = data["id"]
         data["id"] = data["_id"]
 
@@ -35,6 +77,7 @@ class DataTypeFile:
         return data
 
 
+@hydrate(datatype_fetch)
 @nested_dataclass
 class DataType:
     id: str
@@ -73,40 +116,3 @@ class DataTypeTag:
 
     def __repr__(self):
         return ("!" if self.negate else "") + self.name
-
-
-def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List[DataType]:
-
-    query = {}
-
-    if search:
-        if is_id(search):
-            query["_id"] = search
-        else:
-            query["name"] = search
-    else:
-        if id:
-            query["_id"] = id
-        if name:
-            query["name"] = name
-
-    url = services["warehouse"] + "/datatype"
-    res = requests.get(
-        url,
-        params={
-            "find": json.dumps(query),
-            "sort": "name",
-            "skip": skip,
-            "limit": limit,
-        },
-        headers={**auth_header()},
-    )
-
-    if res.status_code == 404:
-        return []
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
-    
-    return DataType.normalize(res.json()["datatypes"])
-

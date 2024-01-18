@@ -2,7 +2,7 @@ import time
 from dataclasses import field, fields, dataclass
 import json
 import requests
-from typing import List
+from typing import List, Optional
 
 
 from .utils import is_id, nested_dataclass
@@ -40,7 +40,7 @@ class Task:
 
 def instance_query(
     id=None, name=None, group=None, search=None, skip=0, limit=100
-):
+) -> Optional[List[Instance]]:
     query = {}
     if search:
         if is_id(search):
