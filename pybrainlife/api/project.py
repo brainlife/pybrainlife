@@ -1,10 +1,8 @@
-from dataclasses import field, fields, dataclass
 import json
 import requests
 from typing import List
 
 from .utils import nested_dataclass, is_id
-from .datatype import datatype_query, DataType, DataTypeTag
 from .api import auth_header, services
 
 
@@ -65,6 +63,7 @@ def project_query(
     
     return Project.normalize(res.json()["projects"])
 
+
 def project_create(name, description=None, group=None):
     data = {
         "name": name,
@@ -85,7 +84,7 @@ def project_create(name, description=None, group=None):
 
     return Project.normalize(res.json())
 
-#only hides the project from the user
+
 def project_delete(id):
     url = services["warehouse"] + "/project/" + id
     res = requests.delete(
@@ -95,5 +94,3 @@ def project_delete(id):
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-
-    return res.json()
