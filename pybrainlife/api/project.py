@@ -18,6 +18,7 @@ class Project:
     admins: List[str]
     members: List[str]
     guests: List[str]
+    removed: bool = False
 
     @staticmethod
     def normalize(data):
@@ -63,3 +64,36 @@ def project_query(
         raise Exception(res.json()["message"])
     
     return Project.normalize(res.json()["projects"])
+
+def project_create(name, description=None, group=None):
+    data = {
+        "name": name,
+        "desc": description,
+    }
+    if group is not None:
+        data["group_id"] = group
+
+    url = services["warehouse"] + "/project"
+    res = requests.post(
+        url,
+        json=data,
+        headers={**auth_header()},
+    )
+
+    if res.status_code != 200:
+        raise Exception(res.json()["message"])
+
+    return Project.normalize(res.json())
+
+#only hides the project from the user
+def project_delete(id):
+    url = services["warehouse"] + "/project/" + id
+    res = requests.delete(
+        url,
+        headers={**auth_header()},
+    )
+
+    if res.status_code != 200:
+        raise Exception(res.json()["message"])
+
+    return res.json()
