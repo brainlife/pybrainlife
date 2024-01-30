@@ -10,9 +10,9 @@ from .api import auth_header, services
 class Resource:
     id: str
     user_id: str
+    name: str
     admins: List[str]
     active: bool = True
-    name: str
     avatar: Optional[str] = None
     citation: Optional[str] = None
     config: dict = field(default_factory=dict)
@@ -60,12 +60,12 @@ def resource_query(id=None, name=None, skip=0, limit=100):
 
 
 def resource_create(
+    name: str,
     config: Dict[str, Any],
     envs: Optional[Dict[str, Any]] = None,
-    name: Optional[str] = None,
     avatar: Optional[str] = None,
     hostname: Optional[str] = None,
-    services: Optional[List[Dict[str, Any]]] = None,
+    resource_services: Optional[List[Dict[str, Any]]] = None,
     gids: Optional[List[int]] = None,
     active: Optional[bool] = True
 ) -> Resource:
@@ -90,7 +90,7 @@ def resource_create(
     if name: data["name"] = name
     if avatar: data["avatar"] = avatar
     if hostname: data["hostname"] = hostname
-    if services: data["services"] = services
+    if resource_services: data["services"] = services
     if gids: data["gids"] = gids
 
     url = services["amaretti"] + "/resource"
@@ -110,20 +110,18 @@ def resource_delete(id):
         raise Exception(res.json()["message"])
     return res.json()
 
-
-def find_best_resource(service: Optional[str] = None) -> Dict[str, Any]:
+def find_best_resource(service: str, groupIDs: List[int]) -> Dict[str, Any]:
     """
     Finds the best resource to run a specified service.
 
-    :param jwt_token: A valid JWT token for authorization.
-    :param service: Optional name of the service to run.
+    :param service: Name of the service to run (like "soichih/sca-service-life").
+    :param groupIDs: List of group IDs to query resources.
     :return: A dictionary containing details of the best resource.
     """
     url = services["amaretti"] + "/resource/best"
     headers = {**auth_header()}
-    params = {}
-    if service:
-        params['service'] = service
+    
+    params = {"service": service, "gids": groupIDs}
 
     response = requests.get(url, headers=headers, params=params)
 
@@ -131,6 +129,7 @@ def find_best_resource(service: Optional[str] = None) -> Dict[str, Any]:
         raise Exception(f"API request failed: {response.text}")
 
     resource_data = response.json()
+    print(resource_data)
     resource_data['resource'] = Resource.normalize(resource_data['resource'])
     return resource_data
 

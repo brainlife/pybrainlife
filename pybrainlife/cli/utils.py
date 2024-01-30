@@ -53,3 +53,9 @@ def ensure_auth():
         token,
         options={"verify_signature": False, "verify_exp": True}
       )
+    
+def logged_in_userDetails():
+    token = get_auth()
+    if token is None:
+        raise Exception("Not authenticated")
+    return jwt.decode(token, options={"verify_signature": False, "verify_exp": True})
