@@ -1,10 +1,9 @@
-from pybrainlife.api.resource import resource_create, resource_query, find_best_resource, resource_delete
+from pybrainlife.api.resource import resource_create, resource_query, find_best_resource, resource_delete, resource_update
 
-from pybrainlife.cli.utils import logged_in_userDetails
+from pybrainlife.cli.utils import logged_in_user_details
 
 def test_create_resource():
     global resource
-    resource_id = "sda"
     name = "test resource"
     active = True
     gids = [0, 1, 2]
@@ -38,18 +37,26 @@ def test_query_resource():
     assert resourceReturned.config == resource.config
     assert resourceReturned.active == resource.active
 
+def test_update_resource():
+    resource.name = "test resource updated"
+    resource.active = False
+    print(resource.id)
+    response = resource_update(resource.id, name=resource.name, active=resource.active)
+    assert response is not None
+    print(response)
+    assert response['name'] == resource.name
+    assert response['active'] == resource.active
+
 def test_delete_resource():
     resource_delete(resource.id)
     response = resource_delete(resource.id)
     assert response is not None
     assert response['status'] == 'ok'
 
-
-
 def test_find_best_resource():
     # service = "soichih/sca-product-raw"
     service = "brainlife/app-fsl-anat"
-    get_user = logged_in_userDetails()
+    get_user = logged_in_user_details()
     groupIDS = [17519] + get_user['gids']
     resources = find_best_resource(service,groupIDS)
     assert resources is not None

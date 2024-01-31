@@ -102,13 +102,43 @@ def resource_create(
     return Resource.normalize(res.json())
 
 
+def resource_update(id,    
+    config: Dict[str, Any]=None,
+    envs: Optional[Dict[str, Any]] = None,
+    avatar: Optional[str] = None,
+    hostname: Optional[str] = None,
+    resource_services: Optional[List[Dict[str, Any]]] = None,
+    gids: Optional[List[int]] = None,
+    name: Optional[str] = None,
+    active: Optional[bool] = True ):
+
+    data = {
+        "config": config,
+        "active": active
+    }
+    if envs: data["envs"] = envs
+    if name: data["name"] = name
+    if avatar: data["avatar"] = avatar
+    if hostname: data["hostname"] = hostname
+    if resource_services: data["services"] = services
+    if gids: data["gids"] = gids
+
+    url = services["amaretti"] + "/resource/"+id
+    res = requests.put(url, json=data, headers={**auth_header()})
+
+    print(res)
+
+    if res.status_code != 200:
+        raise Exception(res) #we only have error codes in the response
+    return res.json()
+
 def resource_delete(id):
     url = services["amaretti"] + "/resource/" + id
     res = requests.delete(url, headers={**auth_header()})
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-    return res.json()
+    return res.json() #response is a message
 
 def find_best_resource(service: str, groupIDs: List[int]) -> Dict[str, Any]:
     """

@@ -54,7 +54,7 @@ def ensure_auth():
         options={"verify_signature": False, "verify_exp": True}
       )
     
-def logged_in_userDetails():
+def logged_in_user_details():
     token = get_auth()
     if token is None:
         raise Exception("Not authenticated")
