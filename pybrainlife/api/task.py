@@ -12,14 +12,16 @@ from .api import auth_header, services
 @nested_dataclass
 class Instance:
     id: str
-    name: str
     status: str
+    name: str = None
+    desc: str = None
 
     @staticmethod
     def normalize(data):
         if isinstance(data, list):
             return [Instance.normalize(d) for d in data]
         data["id"] = data["_id"]
+        print(data)
         return Instance(**data)
 
 
@@ -102,13 +104,45 @@ def task_run(instance, name, service, config) -> Task:
             "instance_id": instance,
             "name": name,
             "service": service,
-            "config": {},
+            "config": config,
         },
         headers={**auth_header()},
     )
     task = res.json()["task"]
     return Task.normalize(task)
 
+def task_run_app(config):
+    """
+    Submits a task based on the provided configuration.
+
+    Args:
+        config (dict): The configuration for the task submission.
+        services (dict): A dictionary containing service URLs.
+        auth_header (dict): The authentication headers for the request.
+
+    Returns:
+        Task: A normalized Task object representing the submitted task.
+
+    Raises:
+        Exception: If the request fails or the API returns a non-200 status code.
+    """
+    url = services["amaretti"] + "/task"
+    headers={**auth_header()},
+
+    response = requests.post(url, json=config, headers=headers)
+
+    # Check if the request was successful
+    if response.status_code != 200:
+        error_message = response.json().get('message', 'Unknown error occurred')
+        raise Exception(f"Task submission failed: {response.status_code} - {error_message}")
+
+    # Extract the task data from the response
+    task_data = response.json().get("task")
+    if task_data is None:
+        raise Exception("Task data not found in response")
+
+    # Normalize and return the task data as a Task object
+    return Task.normalize(task_data)
 
 def task_wait_dataset(id):
     while True:
@@ -201,3 +235,13 @@ def task_product_query(id):
         headers={**auth_header()},
     )
     return res.json()
+
+def stage_datasets(instance_id, dataset_ids):
+    response = requests.post(
+        services["warehouse"]+"/dataset/stage", json={
+        "instance_id": instance_id,
+        "dataset_ids": dataset_ids,
+    }, headers={**auth_header()})
+    if response.status_code != 200:
+        raise Exception(response.json().get('message'))
+    return Task.normalize(response.json()['task'])

@@ -56,7 +56,6 @@ def project_query(
         },
         headers={**auth_header()},
     )
-
     if res.status_code == 404:
         return None
 
@@ -97,3 +96,10 @@ def project_delete(id):
         raise Exception(res.json()["message"])
 
     return res.json()
+
+def get_project_by_id(project_id):
+    project = project_query(id=project_id)
+    print(project)
+    if not project:
+        raise Exception(f"Project {project_id} not found")
+    return project[0]
