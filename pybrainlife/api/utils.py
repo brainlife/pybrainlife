@@ -3,7 +3,7 @@ from dataclasses import dataclass, is_dataclass
 import requests
 
 def is_id(value):
-    return re.match(r'^[0-9a-fA-F]{24}$', value) is not None
+    return isinstance(value, str) and re.match(r'^[0-9a-fA-F]{24}$', value) is not None
 
 
 def nested_dataclass(*args, **kwargs):
@@ -26,7 +26,7 @@ def nested_dataclass(*args, **kwargs):
                     and isinstance(value, list)
                 ):
                     field_type = field_type.__args__[0]
-                    new_obj = [field_type(**v) for v in value]
+                    new_obj = [field_type(**v) if isinstance(v, dict) else v for v in value]
                     valid_kwargs[name] = new_obj
                 elif is_dataclass(field_type):
                     new_obj = field_type(value)
@@ -48,6 +48,10 @@ def hydrate(fn):
         def __init__(self, *args, **kwargs):
             if len(args) == 1 and is_id(args[0]) and not kwargs:
                 kwargs = fn(args[0])
+            if len(args) == 1 and isinstance(args[0], cls):
+                kwargs = args[0].__dict__
+            if isinstance(kwargs, cls):
+                kwargs = kwargs.__dict__
             original_init(self, **kwargs)
         cls.__init__ = __init__
         return cls

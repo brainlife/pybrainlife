@@ -88,6 +88,8 @@ class DataType:
 
     @staticmethod
     def normalize(data):
+        if isinstance(data, str):
+            return datatype_fetch(data)
         if isinstance(data, list):
             return [DataType.normalize(d) for d in data]
         data["id"] = data["_id"]
@@ -96,7 +98,12 @@ class DataType:
             DataTypeFile.normalize(file)
             for file in data["files"]
         ]
+        default_validator = ""  
+        data['validator'] = data.get('validator', default_validator)
         return DataType(**data)
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 
 @nested_dataclass

@@ -11,7 +11,7 @@ def test_app_run():
     appID= "59714d376c3b7e0029153f53"
     #login and then run app in one of my project in brainlife
     inputs = {
-        "t1": "65b030124ce5ac2907f81c48",
+        "t1: 65b030124ce5ac2907f81c48",
     }
 
     instanceID = "65ba8fb94028114d986cc6ce"

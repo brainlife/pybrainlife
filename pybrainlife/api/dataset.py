@@ -79,6 +79,7 @@ def dataset_query(
         },
         headers={**auth_header()},
     )
+    print("Querydataset",query,"RESPONSE DATASET",res.json())
 
     if res.status_code == 404:
         return []
@@ -109,7 +110,7 @@ class Dataset:
     metadata: dict
     description: str
     storage: str
-    size: int
+    size: Optional[int]
 
     status: str
     created_at: datetime
@@ -123,6 +124,8 @@ class Dataset:
         data["description"] = data["desc"]
         data["metadata"] = data["meta"]
         data["datatype"] = DataType.normalize(data["datatype"])
-        data["datatype_tags"] = DataTypeTag.normalize(data["inputs"])
-        data["tags"] = DataTypeTag.normalize(data["outputs"])
+        data["datatype_tags"] = DataTypeTag.normalize(data["datatype_tags"])
+        data["tags"] = DataTypeTag.normalize(data["tags"])
+        data["created_at"] = data["create_date"]
+        data["size"] = data.get("size", None)
         return Dataset(**data)

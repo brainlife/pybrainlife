@@ -57,6 +57,9 @@ class App:
 
     inputs: List[AppInputField]
     outputs: List[AppOutputField]
+    config: dict
+    github_branch: str
+    github: str
 
     @staticmethod
     def normalize(data):
@@ -66,6 +69,9 @@ class App:
         data["description"] = data["desc"]
         data["inputs"] = AppInputField.normalize(data["inputs"])
         data["outputs"] = AppInputField.normalize(data["outputs"])
+        data["config"] = data["config"]
+        data["github_branch"] = data["github_branch"]
+        data["github"] = data["github"]
         return App(**data)
 
 
@@ -162,20 +168,19 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
         raise Exception(f"Project {project_id} not found")
     
     #get app
-    app = get_app_by_id(id=app_id)
+    app: App = get_app_by_id(id=app_id)
     if not app:
         raise Exception(f"App {app_id} not found")
 
     #get config
-    config = app.get("config",{})
+    config = app.config
 
-    appBranch = app.get("github_branch", "master")
-    validate_branch(app.get("github"),appBranch) #will show error if branch is not valid
+    appBranch = app.github_branch
+    validate_branch(app.github,appBranch) #will show error if branch is not valid
 
-    group_ids = project["group_id"]
-    if(project.noPublicResource == False or project.noPublicResource == None):
+    group_ids = [project.group]
+    if project.has_public_resource:  # Assuming False or None means public resources are allowed
         group_ids.append(1)
-    
     #get datatypes 
     datatype_table = fetch_and_map_datatypes()
     id_to_app_input_table = map_app_inputs(app.inputs)
@@ -186,26 +191,26 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
     #process the inputs 
     for input in inputs:
         file_id, dataset_query_id = parse_file_id_and_dataset_query_id(input)
-        datasets = dataset_query(id=dataset_query_id, limit=1) #limit not needed ?
+        datasets = dataset_query(id=dataset_query_id, limit=1) 
 
         if len(datasets) == 0:
             raise Exception(f"No data object matching '{dataset_query_id}'")  
         if len(datasets) > 1:
             return Exception(f"Multiple data objects matching '{dataset_query_id}'")
-        if datasets[0]['_id'] not in all_dataset_ids:
-            all_dataset_ids.append(datasets[0]['_id']) #whats the need of it? 
+        if datasets[0].id not in all_dataset_ids:
+            all_dataset_ids.append(datasets[0].id) #whats the need of it? 
 
         dataset = datasets[0]
-        if dataset['status'] != "stored":
-            raise ValueError(f"Input data object {input} has storage status '{dataset['status']}' and cannot be used until it has been successfully stored.")
+        if dataset.status != "stored":
+            raise ValueError(f"Input data object {input} has storage status '{dataset.status}' and cannot be used until it has been successfully stored.")
     
-        if dataset.get('removed', False) == True:
+        if dataset.removed == True:
             raise ValueError(f"Input data object {input} has been removed and cannot be used.")
     
         app_input = id_to_app_input_table[file_id]
         if not app_input:
             raise Exception("This app's config does not include key '" + file_id + "'")
-        if not app_input['datatype']:
+        if not app_input.datatype:
             raise Exception("Given input of datatype " + datatype_table[dataset.datatype].name + " but expected " + datatype_table[app_input.datatype].name + " when checking " + input)
         
         validate_datatype_tags(file_id, input, dataset, app_input)
@@ -214,7 +219,7 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
         resolvedInputs[file_id].append(dataset)
 
     #check if required inputs are set 
-    check_missing_inputs(app['inputs'], resolvedInputs)
+    check_missing_inputs(app.inputs, resolvedInputs)
 
     #validate instance
     instance = find_or_create_instance(app, project, instance_id)   
@@ -223,7 +228,7 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
 
     unique_dataset_ids = collect_unique_dataset_ids(app, inputs)
     
-    task = stage_datasets(instance['id'], 
+    task = stage_datasets(instance.id, 
                           unique_dataset_ids)
 
     appInputforTask, appSubDirforTask = prepare_inputs_and_subdirs(app, resolvedInputs, task)
@@ -235,8 +240,8 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
     prepared_config = prepare_config(config_values,task, resolvedInputs,datatype_table=datatype_table,app=app)
     # Extending the prepared_config with additional properties
     prepared_config.update({
-        "_app": app["_id"],
-        "_tid": task["config"]["_tid"] + 1,
+        "_app": app.id,
+        "_tid": task.config["_tid"] + 1,
         "_inputs": appInputforTask,  # Assuming app_inputs is prepared earlier
         "_outputs": app_outputs,  # Assuming app_outputs is prepared earlier
     })
@@ -268,4 +273,4 @@ def get_app_by_id(id):
     app = app_query(id=id)
     if not app:
         raise Exception(f"App {id} not found")
-    return app[0]
+    return App.normalize(app[0])

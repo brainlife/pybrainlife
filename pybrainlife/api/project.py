@@ -3,11 +3,17 @@ import json
 import requests
 from typing import List
 
-from .utils import nested_dataclass, is_id
+from .utils import nested_dataclass, is_id, hydrate
 from .datatype import datatype_query, DataType, DataTypeTag
 from .api import auth_header, services
 
+def get_project_by_id(project_id):
+    project = project_query(id=project_id)
+    if not project:
+        raise Exception(f"Project {project_id} not found")
+    return project[0]
 
+@hydrate(get_project_by_id)
 @nested_dataclass
 class Project:
     id: str
@@ -19,6 +25,7 @@ class Project:
     members: List[str]
     guests: List[str]
     removed: bool = False
+    has_public_resource : bool = False
 
     @staticmethod
     def normalize(data):
@@ -27,6 +34,7 @@ class Project:
         data["id"] = data["_id"]
         data["group"] = data["group_id"]
         data["description"] = data["desc"]
+        data["has_public_resource"] = not data.get("noPublicResource", False)
         return Project(**data)
 
 
@@ -97,9 +105,3 @@ def project_delete(id):
 
     return res.json()
 
-def get_project_by_id(project_id):
-    project = project_query(id=project_id)
-    print(project)
-    if not project:
-        raise Exception(f"Project {project_id} not found")
-    return project[0]

@@ -100,7 +100,7 @@ def fetch_and_map_datatypes():
     - A dictionary mapping datatype IDs to datatypes.
     """
     datatypes = datatype_query(limit=0)
-    datatype_table = {d['_id']: d for d in datatypes}
+    datatype_table = {d['id']: d for d in datatypes}
     return datatype_table
 
 
@@ -114,7 +114,7 @@ def map_app_inputs(app_inputs):
     Returns:
     - A dictionary mapping app input IDs to app inputs.
     """
-    id_to_app_input_table = {input['id']: input for input in app_inputs}
+    id_to_app_input_table = {input.id: input for input in app_inputs}
     return id_to_app_input_table
 
 def parse_file_id_and_dataset_query_id(input):
@@ -130,7 +130,7 @@ def parse_file_id_and_dataset_query_id(input):
     if ":" not in input:
         raise ValueError(f"Invalid input: {input}, No key given for dataset query. Expected format: file_id:dataset_query_id")
     file_id, dataset_query = input.split(':')
-    return file_id, dataset_query
+    return file_id.strip(), dataset_query.strip()
 
 def validate_datatype_tags(file_id, input, dataset, app_input):
     """
