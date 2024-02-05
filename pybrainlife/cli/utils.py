@@ -114,7 +114,8 @@ def map_app_inputs(app_inputs):
     Returns:
     - A dictionary mapping app input IDs to app inputs.
     """
-    id_to_app_input_table = {input.id: input for input in app_inputs}
+    #using field as id is mapped as field
+    id_to_app_input_table = {input.field: input for input in app_inputs}
     return id_to_app_input_table
 
 def parse_file_id_and_dataset_query_id(input):
@@ -136,9 +137,10 @@ def validate_datatype_tags(file_id, input, dataset, app_input):
     """
     Validates the dataset's datatype tags against the app's input requirements.
     """
-    user_input_tags = set(dataset['datatype_tags'])
+    user_input_tags = set(dataset.datatype_tags)
 
-    for tag in app_input['datatype_tags']:
+    for tag in app_input.datatype_tags:
+        tag = str(tag).strip()
         if tag.startswith("!"):
             required_absent_tag = tag[1:]
             if required_absent_tag in user_input_tags:
@@ -147,7 +149,7 @@ def validate_datatype_tags(file_id, input, dataset, app_input):
             if tag not in user_input_tags:
                 raise ValueError(f"This app requires that the input data object for {file_id} have datatype tag '{tag}', but it is not set on {input}")
 
-def check_missing_inputs(app_inputs, provided_inputs):
+def check_missing_inputs(app_inputs, resolved_inputs):
     """
     Check for any required inputs that are missing.
 
@@ -158,8 +160,18 @@ def check_missing_inputs(app_inputs, provided_inputs):
     Raises:
     - ValueError: If any required inputs are missing.
     """
-    missing_inputs = [input for input in app_inputs if not input.get('optional') and input['id'] not in provided_inputs]
-
+    # #    #TEMP workaround for the test
+    # # set optional and multi to false 
+    for input in app_inputs:
+        print(input)
+    #     if input.optional is None:
+    #         input['optional'] = False
+    #     if input.multi is None:
+    #         input['multi'] = False
+    
+    missing_inputs = [input_field.id for input_field in app_inputs 
+                      if not input_field.optional and input_field.id not in resolved_inputs]
+        
     if missing_inputs:
         missing_input_ids = ', '.join(input['id'] for input in missing_inputs)
         raise ValueError(f"some required inputs are missing: {missing_input_ids}")

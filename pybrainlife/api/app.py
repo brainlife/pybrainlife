@@ -28,7 +28,7 @@ class AppField:
     @staticmethod
     def normalize(data):
         if isinstance(data, list):
-            return [AppOutputField.normalize(d) for d in data]
+            return [AppField.normalize(d) for d in data]
         data["field"] = data["id"]
         data["id"] = data["_id"]
         data["datatype_tags"] = [
@@ -42,6 +42,15 @@ class AppInputField(AppField):
     optional: bool
     multi: bool
     advanced: bool
+
+    @staticmethod
+    def normalize(data):
+        if isinstance(data, list):
+            return [AppInputField.normalize(d) for d in data]
+        
+        data = AppField.normalize(data)
+        data["optional"] = data.get("optional", False)
+        return data
 
 
 class AppOutputField(AppField):
@@ -68,7 +77,7 @@ class App:
         data["id"] = data["_id"]
         data["description"] = data["desc"]
         data["inputs"] = AppInputField.normalize(data["inputs"])
-        data["outputs"] = AppInputField.normalize(data["outputs"])
+        data["outputs"] = AppOutputField.normalize(data["outputs"])
         data["config"] = data["config"]
         data["github_branch"] = data["github_branch"]
         data["github"] = data["github"]
@@ -154,7 +163,6 @@ def app_query(
     if res.status_code != 200:
         raise Exception(res.json()["message"])
 
-    print(res.json()["apps"])
     return res.json()["apps"] #solve in pair programming session
 
     # return App.normalize(res.json()["apps"])
@@ -206,7 +214,6 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
     
         if dataset.removed == True:
             raise ValueError(f"Input data object {input} has been removed and cannot be used.")
-    
         app_input = id_to_app_input_table[file_id]
         if not app_input:
             raise Exception("This app's config does not include key '" + file_id + "'")

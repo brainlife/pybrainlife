@@ -79,7 +79,6 @@ def dataset_query(
         },
         headers={**auth_header()},
     )
-    print("Querydataset",query,"RESPONSE DATASET",res.json())
 
     if res.status_code == 404:
         return []
