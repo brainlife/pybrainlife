@@ -9,6 +9,8 @@ from ..api.task import instance_query, instance_create
 from ..api.datatype import datatype_query
 import requests
 from typing import List
+
+
 home = Path.home() or ""
 token_path = home / ".config" / get_host() / ".jwt"
 
@@ -250,7 +252,7 @@ def prepare_outputs(app, opt_tags, inputs, project_id, meta):
         # Access attributes directly using dot notation
         output_req = {
             'id': output.id,
-            'datatype': output.datatype,
+            'datatype': output.datatype.id,
             'desc': getattr(output, 'desc', app.name),  # Use getattr for optional attributes
             'tags': opt_tags,
             'meta': meta,
@@ -272,13 +274,14 @@ def prepare_outputs(app, opt_tags, inputs, project_id, meta):
             input_datasets = inputs.get(getattr(output, 'datatype_tags_pass', ''), [])
             for dataset in input_datasets:
                 if dataset and hasattr(dataset, 'datatype_tags'):
-                    tags.extend(dataset.datatype_tags)
+                    tags.extend([repr(t) for t in dataset.datatype_tags])
                 if dataset:
                     # Assuming dataset.meta is a dict; update meta directly
-                    output_req['meta'].update(getattr(dataset, 'meta', {}))
-        tags.extend(getattr(output, 'datatype_tags', []))
-        print("output,datatype_tags", output.datatype_tags)
-        output_req['datatype_tags'] = list(set(str(tags)))  # Remove duplicates
+                    output_req['meta'].update(dataset.meta)
+
+        tags.extend([repr(t) for t in output.datatype_tags])
+
+        output_req['datatype_tags'] = list(set(tags))  # Remove duplicates
 
         app_outputs.append(output_req)
     return app_outputs

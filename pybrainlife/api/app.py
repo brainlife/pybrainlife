@@ -1,6 +1,5 @@
-from dataclasses import field, fields, dataclass
+from dataclasses import field as dcfield
 import json
-import math
 import requests
 from typing import List, Dict, Union, overload
 
@@ -28,7 +27,7 @@ class AppField:
     id: str
     field: str
     datatype: DataType
-    datatype_tags: List[DataTypeTag]
+    datatype_tags: List[DataTypeTag] = dcfield(default_factory=list)
 
     @overload
     @staticmethod
@@ -52,9 +51,9 @@ class AppField:
 
 @nested_dataclass
 class AppInputField(AppField):
-    optional: bool
-    multi: bool
-    advanced: bool
+    optional: bool = False
+    multi: bool = False
+    advanced: bool = False
 
     @overload
     @staticmethod
@@ -78,8 +77,8 @@ class AppInputField(AppField):
 
 @nested_dataclass
 class AppOutputField(AppField):
-    output_on_root: bool
-    archive: bool
+    output_on_root: bool = False
+    archive: bool = True
 
     @overload
     @staticmethod
@@ -325,9 +324,8 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
         submissionParams["preferred_resource_id"] = resource
     
     print("Submitting task", submissionParams)
-    task_run_app(submissionParams)
-    
-    print("Task submitted successfully")
+
+    return task_run_app(submissionParams)
 
 def get_app_by_id(id) -> App:
     app = app_query(id=id)

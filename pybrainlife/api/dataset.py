@@ -1,5 +1,6 @@
 import json
 from typing import List, Optional
+from dataclasses import field
 import requests
 from datetime import datetime
 
@@ -106,7 +107,6 @@ class Dataset:
     datatype_tags: List[DataTypeTag]
     tags: List[DataTypeTag]
 
-    metadata: dict
     description: str
     storage: str
     size: Optional[int]
@@ -114,6 +114,8 @@ class Dataset:
     status: str
     created_at: datetime
     removed: bool
+
+    metadata: dict = field(default_factory=dict)
 
     @staticmethod
     def normalize(data):
