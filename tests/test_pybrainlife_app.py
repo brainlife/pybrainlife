@@ -17,11 +17,10 @@ def test_app_run():
     instanceID = "65ba8fb94028114d986cc6ce"
 
     app = get_app_by_id(appID)
-    print(app.inputs[0].__dict__)
 
-    assert 1 == 0
+    # assert 1 == 0
 
-    # print(app_run(app_id=appID,project_id=projectID,inputs=inputs,instance_id=instanceID,config={"reorient" : True, "crop" : True}))
+    print(app_run(app_id=appID,project_id=projectID,inputs=inputs,instance_id=instanceID,config={"reorient" : True, "crop" : True}))
 
 
     # bl app run                                      

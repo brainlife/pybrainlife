@@ -16,7 +16,7 @@ from .utils import nested_dataclass, is_id
 from .datatype import datatype_query, DataType, DataTypeTag
 from .api import auth_header, services
 from .project import get_project_by_id
-from .task import instance_query, instance_create, stage_datasets, task_run_app
+from .task import instance_query, instance_create, stage_datasets, task_run, task_run_app
 from .utils import validate_branch
 from .dataset import dataset_query
 import math
@@ -287,6 +287,8 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
     
     task = stage_datasets(instance.id, 
                           unique_dataset_ids)
+    
+    print("Datasets staged successfully")
 
     appInputforTask, appSubDirforTask = prepare_inputs_and_subdirs(app, resolvedInputs, task)
 
@@ -311,7 +313,7 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
         "service_branch": appBranch,
         "config": prepared_config,
         "deps_config": [{
-            "task": task._id,
+            "task": task.id,
             "subdirs": appSubDirforTask,
         }],
     }
@@ -322,8 +324,9 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
             raise Exception(f"Resource {resource_id} not found")
         submissionParams["preferred_resource_id"] = resource
     
-
+    print("Submitting task", submissionParams)
     task_run_app(submissionParams)
+    
     print("Task submitted successfully")
 
 def get_app_by_id(id) -> App:

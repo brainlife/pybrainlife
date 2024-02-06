@@ -104,6 +104,15 @@ class DataType:
     
     def __getitem__(self, key):
         return getattr(self, key)
+    
+    def to_json(self):
+        return {
+            "_id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "files": [f.to_json() for f in self.files],
+            "validator": self.validator
+        }
 
 
 @nested_dataclass
@@ -123,3 +132,4 @@ class DataTypeTag:
 
     def __repr__(self):
         return ("!" if self.negate else "") + self.name
+    

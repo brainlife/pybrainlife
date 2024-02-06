@@ -21,7 +21,6 @@ class Instance:
         if isinstance(data, list):
             return [Instance.normalize(d) for d in data]
         data["id"] = data["_id"]
-        print(data)
         return Instance(**data)
 
 
@@ -127,9 +126,7 @@ def task_run_app(config):
         Exception: If the request fails or the API returns a non-200 status code.
     """
     url = services["amaretti"] + "/task"
-    headers={**auth_header()},
-
-    response = requests.post(url, json=config, headers=headers)
+    response = requests.post(url, json=config, headers={**auth_header()},)
 
     # Check if the request was successful
     if response.status_code != 200:
