@@ -14,13 +14,10 @@ def nested_dataclass(*args, **kwargs):
         def __init__(self, *args, **kwargs):
             valid_kwargs = {}
             for name, value in kwargs.items():
-                # if cls.__name__ == 'AppField':
-                #     print(cls, name, value)
-                #     import traceback
-                #     traceback.print_stack()
-                field_type = cls.__annotations__.get(name, None)
+                field_type = cls.__dataclass_fields__.get(name, None)
                 if not field_type:
                     continue
+                field_type = field_type.type
                 if is_dataclass(field_type) and isinstance(value, dict):
                     new_obj = field_type(**value)
                     valid_kwargs[name] = new_obj
@@ -30,14 +27,8 @@ def nested_dataclass(*args, **kwargs):
                     and isinstance(value, list)
                 ):
                     field_type = field_type.__args__[0]
-                    print('LIST', field_type, value, name, cls.__name__)
                     new_obj = [field_type(**v) if isinstance(v, dict) else v for v in value]
-                    print(new_obj)
                     valid_kwargs[name] = new_obj
-                    print()
-                    print()
-                    print()
-                    print()
                 elif is_dataclass(field_type):
                     new_obj = field_type(value)
                     valid_kwargs[name] = new_obj

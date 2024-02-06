@@ -2,11 +2,16 @@ from dataclasses import field, fields, dataclass
 import json
 import math
 import requests
-from typing import List
+from typing import List, Dict, Union, overload
 
 from pybrainlife.api.resource import resource_query
 
-from ..cli.utils import check_missing_inputs, collect_unique_dataset_ids, compile_metadata, fetch_and_map_datatypes, find_or_create_instance, map_app_inputs, parse_file_id_and_dataset_query_id, prepare_app_config, prepare_config, prepare_inputs_and_subdirs, prepare_outputs, validate_datatype_tags
+from ..cli.utils import (
+    check_missing_inputs, collect_unique_dataset_ids, compile_metadata,
+    fetch_and_map_datatypes, find_or_create_instance, map_app_inputs,
+    parse_file_id_and_dataset_query_id, prepare_app_config, prepare_config,
+    prepare_inputs_and_subdirs, prepare_outputs, validate_datatype_tags
+)
 from .utils import nested_dataclass, is_id
 from .datatype import datatype_query, DataType, DataTypeTag
 from .api import auth_header, services
@@ -25,8 +30,16 @@ class AppField:
     datatype: DataType
     datatype_tags: List[DataTypeTag]
 
+    @overload
     @staticmethod
-    def normalize(data):
+    def normalize(data: List[Dict]) -> List['AppField']: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> 'AppField': ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union['AppField', List['AppField']]:
         if isinstance(data, list):
             return [AppField.normalize(d) for d in data]
         data["field"] = data["id"]
@@ -35,27 +48,56 @@ class AppField:
             DataTypeTag.normalize(datatype_tag)
             for datatype_tag in data["datatype_tags"]
         ]
-        return data
+        return AppField(**data)
 
-
+@nested_dataclass
 class AppInputField(AppField):
     optional: bool
     multi: bool
     advanced: bool
 
+    @overload
     @staticmethod
-    def normalize(data):
+    def normalize(data: List[Dict]) -> List['AppInputField']: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> 'AppInputField': ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union['AppInputField', List['AppInputField']]:
         if isinstance(data, list):
             return [AppInputField.normalize(d) for d in data]
-        
-        data = AppField.normalize(data)
-        data["optional"] = data.get("optional", False)
-        return data
+
+        info = AppField.normalize(data).__dict__
+        info["optional"] = info.get("optional", False)
+        info["multi"] = info.get("multi", False)
+        info["advanced"] = info.get("advanced", False)
+        return AppInputField(**info)
 
 
+@nested_dataclass
 class AppOutputField(AppField):
     output_on_root: bool
     archive: bool
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List['AppOutputField']: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> 'AppOutputField': ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union['AppOutputField', List['AppOutputField']]:
+        if isinstance(data, list):
+            return [AppOutputField.normalize(d) for d in data]
+
+        info = AppField.normalize(data).__dict__
+        info["archive"] = info.get("archive", False)
+        info["output_on_root"] = info.get("output_on_root", False)
+        return AppOutputField(**info)
 
 
 @nested_dataclass
@@ -70,8 +112,16 @@ class App:
     github_branch: str
     github: str
 
+    @overload
     @staticmethod
-    def normalize(data):
+    def normalize(data: List[Dict]) -> List['App']: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> 'App': ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union['App', List['App']]:
         if isinstance(data, list):
             return [App.normalize(d) for d in data]
         data["id"] = data["_id"]
@@ -276,7 +326,7 @@ def app_run(app_id, project_id, inputs, config, resource_id=None, tags=None,inst
     task_run_app(submissionParams)
     print("Task submitted successfully")
 
-def get_app_by_id(id):
+def get_app_by_id(id) -> App:
     app = app_query(id=id)
     if not app:
         raise Exception(f"App {id} not found")
