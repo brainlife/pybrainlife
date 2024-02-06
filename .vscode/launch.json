@@ -3,13 +3,14 @@
   "configurations": [
     {
       "name": "Project Tests",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "console": "integratedTerminal",
       "module": "poetry",
       "args": [
         "run",
-        "pytest"
+        "pytest",
+        "${file}"
       ]
     }
   ]
