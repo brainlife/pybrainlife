@@ -300,7 +300,6 @@ def app_run(
             raise ValueError(
                 f"Input data object {input} has been removed and cannot be used."
             )
-        print("id_toapp", id_to_app_input_table)
 
         app_input = id_to_app_input_table[file_id]
         if not app_input:
@@ -374,11 +373,7 @@ def app_run(
             raise Exception(f"Resource {resource_id} not found")
         submissionParams["preferred_resource_id"] = resource
 
-    print("Submitting task", submissionParams)
-
-    print("-----------------------------")
     task = task_run_app(submissionParams)
-    print("Task submitted successfully", task)
 
     # return task
 
