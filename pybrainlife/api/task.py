@@ -15,6 +15,7 @@ class Instance:
     status: str
     name: str = None
     desc: str = None
+    config: dict = None
 
     @staticmethod
     def normalize(data):

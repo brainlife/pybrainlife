@@ -328,8 +328,6 @@ def app_run(
 
     task = stage_datasets(instance.id, unique_dataset_ids)
 
-    print("Datasets staged successfully")
-
     appInputforTask, appSubDirforTask = prepare_inputs_and_subdirs(
         app, resolvedInputs, task
     )
@@ -374,7 +372,11 @@ def app_run(
 
     print("Submitting task", submissionParams)
 
-    return task_run_app(submissionParams)
+    print("-----------------------------")
+    task = task_run_app(submissionParams)
+    print("Task submitted successfully", task)
+
+    # return task
 
 
 def get_app_by_id(id) -> App:
