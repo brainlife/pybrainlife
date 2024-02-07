@@ -1,4 +1,3 @@
-from dataclasses import field, fields, dataclass
 import json
 import requests
 from typing import List
@@ -104,5 +103,4 @@ def project_delete(id):
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-
     return res.json()
