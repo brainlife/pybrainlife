@@ -134,8 +134,6 @@ def resource_update(
     url = services["amaretti"] + "/resource/" + id
     res = requests.put(url, json=data, headers={**auth_header()})
 
-    print(res)
-
     if res.status_code != 200:
         raise Exception(res)  # we only have error codes in the response
     return res.json()

@@ -88,9 +88,14 @@ def find_or_create_instance(app, project, instance_id=None):
         instance = instance_query(id=instance_id)[0]
         if not instance:
             raise Exception(f"Instance {instance_id} not found")
+        if instance.config.get("removing") == True:
+            raise Exception(
+                f"Instance {instance_id} is being removed and cannot be used"
+            )
     else:
-        new_instance_name = (app["tags"] or "CLI Process") + "." + str(uuid.uuid4())
-        instance = instance_create(new_instance_name, "(CLI)", project.id)
+        base_tag = ", ".join(app.tags) if app.tags else "CLI Process"
+        new_instance_name = base_tag + "." + str(uuid.uuid4())
+        instance = instance_create(new_instance_name, "(CLI)" + app.name, project)
 
     return instance
 

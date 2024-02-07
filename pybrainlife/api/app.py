@@ -34,6 +34,7 @@ from .utils import validate_branch
 from .dataset import dataset_query
 import math
 import uuid
+from typing import List
 
 
 @nested_dataclass
@@ -135,6 +136,7 @@ class App:
     config: dict
     github_branch: str
     github: str
+    tags: List[str]
 
     @overload
     @staticmethod
@@ -298,6 +300,8 @@ def app_run(
             raise ValueError(
                 f"Input data object {input} has been removed and cannot be used."
             )
+        print("id_toapp", id_to_app_input_table)
+
         app_input = id_to_app_input_table[file_id]
         if not app_input:
             raise Exception("This app's config does not include key '" + file_id + "'")
