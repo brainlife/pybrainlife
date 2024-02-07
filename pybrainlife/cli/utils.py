@@ -282,7 +282,6 @@ def compile_metadata(app_inputs):
 
 def prepare_outputs(app, opt_tags, inputs, project_id, meta):
     app_outputs = []
-    print("OUTPUT", app.outputs)
     for output in app.outputs:
         # Access attributes directly using dot notation
         output_req = {
