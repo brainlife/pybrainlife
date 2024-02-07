@@ -148,18 +148,18 @@ def resource_delete(id):
     return res.json()  # response is a message
 
 
-def find_best_resource(service: str, groupIDs: List[int]) -> Dict[str, Any]:
+def find_best_resource(service: str, group_ids: List[int]) -> Dict[str, Any]:
     """
     Finds the best resource to run a specified service.
 
     :param service: Name of the service to run (like "soichih/sca-service-life").
-    :param groupIDs: List of group IDs to query resources.
+    :param group_ids: List of group IDs to query resources.
     :return: A dictionary containing details of the best resource.
     """
     url = services["amaretti"] + "/resource/best"
     headers = {**auth_header()}
 
-    params = {"service": service, "gids": groupIDs}
+    params = {"service": service, "gids": group_ids}
 
     response = requests.get(url, headers=headers, params=params)
 

@@ -263,8 +263,8 @@ def app_run(
     # get config
     config = app.config
 
-    appBranch = app.github_branch
-    validate_branch(app.github, appBranch)  # will show error if branch is not valid
+    app_branch = app.github_branch
+    validate_branch(app.github, app_branch)  # will show error if branch is not valid
 
     group_ids = [project.group]
     if (
@@ -277,7 +277,7 @@ def app_run(
 
     all_dataset_ids = []
 
-    resolvedInputs = {}
+    resolved_inputs = {}
     # process the inputs
     for input in inputs:
         file_id, dataset_query_id = parse_file_id_and_dataset_query_id(input)
@@ -316,11 +316,11 @@ def app_run(
 
         validate_datatype_tags(file_id, input, dataset, app_input)
 
-        resolvedInputs[file_id] = resolvedInputs.get(file_id, [])
-        resolvedInputs[file_id].append(dataset)
+        resolved_inputs[file_id] = resolved_inputs.get(file_id, [])
+        resolved_inputs[file_id].append(dataset)
 
     # check if required inputs are set
-    check_missing_inputs(app.inputs, resolvedInputs)
+    check_missing_inputs(app.inputs, resolved_inputs)
 
     # validate instance
     instance = find_or_create_instance(app, project, instance_id)
@@ -331,38 +331,38 @@ def app_run(
 
     task = stage_datasets(instance.id, unique_dataset_ids)
 
-    appInputforTask, appSubDirforTask = prepare_inputs_and_subdirs(
-        app, resolvedInputs, task
+    app_input_for_task, app_subdir_for_task = prepare_inputs_and_subdirs(
+        app, resolved_inputs, task
     )
 
-    meta = compile_metadata(appInputforTask)
+    meta = compile_metadata(app_input_for_task)
 
-    app_outputs = prepare_outputs(app, tags, resolvedInputs, project_id, meta)
+    app_outputs = prepare_outputs(app, tags, resolved_inputs, project_id, meta)
 
     prepared_config = prepare_config(
-        config_values, task, resolvedInputs, datatype_table=datatype_table, app=app
+        config_values, task, resolved_inputs, datatype_table=datatype_table, app=app
     )
     # Extending the prepared_config with additional properties
     prepared_config.update(
         {
             "_app": app.id,
             "_tid": task.config["_tid"] + 1,
-            "_inputs": appInputforTask,  # Assuming app_inputs is prepared earlier
+            "_inputs": app_input_for_task,  # Assuming app_inputs is prepared earlier
             "_outputs": app_outputs,  # Assuming app_outputs is prepared earlier
         }
     )
 
-    submissionParams = {
+    submission_params = {
         "instance_id": instance.id,
         "gids": group_ids,
         "name": app.name.strip(),
         "service": app.github,
-        "service_branch": appBranch,
+        "service_branch": app_branch,
         "config": prepared_config,
         "deps_config": [
             {
                 "task": task.id,
-                "subdirs": appSubDirforTask,
+                "subdirs": app_subdir_for_task,
             }
         ],
     }
@@ -371,10 +371,9 @@ def app_run(
         resource = resource_query(id=resource_id)
         if not resource:
             raise Exception(f"Resource {resource_id} not found")
-        submissionParams["preferred_resource_id"] = resource
+        submission_params["preferred_resource_id"] = resource
 
-    task = task_run_app(submissionParams)
-
+    task = task_run_app(submission_params)
     # return task
 
 
