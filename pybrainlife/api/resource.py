@@ -6,6 +6,7 @@ import requests
 from .utils import nested_dataclass
 from .api import auth_header, services
 
+
 @nested_dataclass
 class Resource:
     id: str
@@ -67,7 +68,7 @@ def resource_create(
     hostname: Optional[str] = None,
     resource_services: Optional[List[Dict[str, Any]]] = None,
     gids: Optional[List[int]] = None,
-    active: Optional[bool] = True
+    active: Optional[bool] = True,
 ) -> Resource:
     """
     Create a new resource in Brainlife.
@@ -82,16 +83,19 @@ def resource_create(
     :param active: Optional flag to set the resource as active or inactive.
     :return: A normalized Resource object.
     """
-    data = {
-        "config": config,
-        "active": active
-    }
-    if envs: data["envs"] = envs
-    if name: data["name"] = name
-    if avatar: data["avatar"] = avatar
-    if hostname: data["hostname"] = hostname
-    if resource_services: data["services"] = services
-    if gids: data["gids"] = gids
+    data = {"config": config, "active": active}
+    if envs:
+        data["envs"] = envs
+    if name:
+        data["name"] = name
+    if avatar:
+        data["avatar"] = avatar
+    if hostname:
+        data["hostname"] = hostname
+    if resource_services:
+        data["services"] = services
+    if gids:
+        data["gids"] = gids
 
     url = services["amaretti"] + "/resource"
     res = requests.post(url, json=data, headers={**auth_header()})
@@ -102,35 +106,40 @@ def resource_create(
     return Resource.normalize(res.json())
 
 
-def resource_update(id,    
-    config: Dict[str, Any]=None,
+def resource_update(
+    id,
+    config: Dict[str, Any] = None,
     envs: Optional[Dict[str, Any]] = None,
     avatar: Optional[str] = None,
     hostname: Optional[str] = None,
     resource_services: Optional[List[Dict[str, Any]]] = None,
     gids: Optional[List[int]] = None,
     name: Optional[str] = None,
-    active: Optional[bool] = True ):
+    active: Optional[bool] = True,
+):
+    data = {"config": config, "active": active}
+    if envs:
+        data["envs"] = envs
+    if name:
+        data["name"] = name
+    if avatar:
+        data["avatar"] = avatar
+    if hostname:
+        data["hostname"] = hostname
+    if resource_services:
+        data["services"] = services
+    if gids:
+        data["gids"] = gids
 
-    data = {
-        "config": config,
-        "active": active
-    }
-    if envs: data["envs"] = envs
-    if name: data["name"] = name
-    if avatar: data["avatar"] = avatar
-    if hostname: data["hostname"] = hostname
-    if resource_services: data["services"] = services
-    if gids: data["gids"] = gids
-
-    url = services["amaretti"] + "/resource/"+id
+    url = services["amaretti"] + "/resource/" + id
     res = requests.put(url, json=data, headers={**auth_header()})
 
     print(res)
 
     if res.status_code != 200:
-        raise Exception(res) #we only have error codes in the response
+        raise Exception(res)  # we only have error codes in the response
     return res.json()
+
 
 def resource_delete(id):
     url = services["amaretti"] + "/resource/" + id
@@ -138,7 +147,8 @@ def resource_delete(id):
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-    return res.json() #response is a message
+    return res.json()  # response is a message
+
 
 def find_best_resource(service: str, groupIDs: List[int]) -> Dict[str, Any]:
     """
@@ -150,7 +160,7 @@ def find_best_resource(service: str, groupIDs: List[int]) -> Dict[str, Any]:
     """
     url = services["amaretti"] + "/resource/best"
     headers = {**auth_header()}
-    
+
     params = {"service": service, "gids": groupIDs}
 
     response = requests.get(url, headers=headers, params=params)
@@ -160,14 +170,13 @@ def find_best_resource(service: str, groupIDs: List[int]) -> Dict[str, Any]:
 
     resource_data = response.json()
     print(resource_data)
-    resource_data['resource'] = Resource.normalize(resource_data['resource'])
+    resource_data["resource"] = Resource.normalize(resource_data["resource"])
     return resource_data
+
 
 # Example usage
 # best_resource_info = find_best_resource("your_jwt_token", "soichih/sca-service-life")
 # print(best_resource_info)
-
-
 
 
 def test_resource_connectivity(resource_id: str, jwt_token: str) -> str:
@@ -188,4 +197,3 @@ def test_resource_connectivity(resource_id: str, jwt_token: str) -> str:
     else:
         error_message = response.json().get("message", "Error : API request failed")
         raise Exception(f"Resource test failed: {error_message}")
-    

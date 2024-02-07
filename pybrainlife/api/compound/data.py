@@ -10,34 +10,40 @@ import requests
 from ...api.project import Project
 from ...api.datatype import DataType, DataTypeTag
 
-from ...api.task import instance_query, instance_create, task_run, task_wait_dataset, task_wait
+from ...api.task import (
+    instance_query,
+    instance_create,
+    task_run,
+    task_wait_dataset,
+    task_wait,
+)
 from ...api.api import auth_header, services
+
 
 def build_tar(datatype, files):
     stream_fp = io.BytesIO()
-    tar = tarfile.TarFile.open(None, 'w|gz', stream_fp)
+    tar = tarfile.TarFile.open(None, "w|gz", stream_fp)
 
     for file in datatype.files:
-
         if not file.field in files:
             continue
 
         filepath = files[file.field]
 
-        if file.type == 'd' and not os.path.isdir(filepath):
+        if file.type == "d" and not os.path.isdir(filepath):
             raise Exception(f"{file.field} is not a directory: {filepath}")
 
-        if file.type == 'f' and not os.path.isfile(filepath):
+        if file.type == "f" and not os.path.isfile(filepath):
             raise Exception(f"{file.field} is not a file: {filepath}")
 
-        if file.type == 'd':
-            filepath = filepath.rstrip('/')
+        if file.type == "d":
+            filepath = filepath.rstrip("/")
             for dir, _, dirfiles in os.walk(filepath):
                 tardir = dir.replace(filepath, file.name)
 
                 for f in dirfiles:
-                    subfilepath = f'{dir}/{f}'
-                    tarsubfilepath = f'{tardir}/{f}'
+                    subfilepath = f"{dir}/{f}"
+                    tarsubfilepath = f"{tardir}/{f}"
                     tar.add(subfilepath, arcname=tarsubfilepath)
         else:
             tarfilepath = file.name
@@ -57,7 +63,7 @@ def upload_dataset(
     tags: List[DataTypeTag],
     datatype_tags: List[DataTypeTag],
     metadata: dict,
-  ):
+):
     instance_name = f"upload.{project.group}"
     instances = instance_query(name=instance_name)
     if instances:

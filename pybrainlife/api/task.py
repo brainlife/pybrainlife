@@ -83,7 +83,7 @@ def instance_create(name, description=None, project=None):
         "desc": description,
     }
     if project:
-        data["config"] = { "brainlife": True }
+        data["config"] = {"brainlife": True}
         data["group_id"] = project.group
 
     res = requests.post(
@@ -110,6 +110,7 @@ def task_run(instance, name, service, config) -> Task:
     task = res.json()["task"]
     return Task.normalize(task)
 
+
 def task_run_app(config):
     """
     Submits a task based on the provided configuration.
@@ -126,12 +127,18 @@ def task_run_app(config):
         Exception: If the request fails or the API returns a non-200 status code.
     """
     url = services["amaretti"] + "/task"
-    response = requests.post(url, json=config, headers={**auth_header()},)
+    response = requests.post(
+        url,
+        json=config,
+        headers={**auth_header()},
+    )
 
     # Check if the request was successful
     if response.status_code != 200:
-        error_message = response.json().get('message', 'Unknown error occurred')
-        raise Exception(f"Task submission failed: {response.status_code} - {error_message}")
+        error_message = response.json().get("message", "Unknown error occurred")
+        raise Exception(
+            f"Task submission failed: {response.status_code} - {error_message}"
+        )
 
     # Extract the task data from the response
     task_data = response.json().get("task")
@@ -140,6 +147,7 @@ def task_run_app(config):
 
     # Normalize and return the task data as a Task object
     return Task.normalize(task_data)
+
 
 def task_wait_dataset(id):
     while True:
@@ -170,9 +178,11 @@ class TaskInvalidState(Exception):
     def __init__(self, task=None):
         self.task = task
 
+
 class TaskFailed(Exception):
     def __init__(self, task=None):
         self.task = task
+
 
 class TaskProductArchiveFailed(Exception):
     def __init__(self, task=None):
@@ -194,11 +204,13 @@ def task_wait(id, wait=3):
 
             if task.status == "finished":
                 if "_outputs" in task.config:
-                    datasets_archive = len([
-                        output
-                        for output in task.config['_outputs']
-                        if output['archive']
-                    ])
+                    datasets_archive = len(
+                        [
+                            output
+                            for output in task.config["_outputs"]
+                            if output["archive"]
+                        ]
+                    )
                     if datasets_archive == 0:
                         return []
 
@@ -233,12 +245,16 @@ def task_product_query(id):
     )
     return res.json()
 
+
 def stage_datasets(instance_id, dataset_ids):
     response = requests.post(
-        services["warehouse"]+"/dataset/stage", json={
-        "instance_id": instance_id,
-        "dataset_ids": dataset_ids,
-    }, headers={**auth_header()})
+        services["warehouse"] + "/dataset/stage",
+        json={
+            "instance_id": instance_id,
+            "dataset_ids": dataset_ids,
+        },
+        headers={**auth_header()},
+    )
     if response.status_code != 200:
-        raise Exception(response.json().get('message'))
-    return Task.normalize(response.json()['task'])
+        raise Exception(response.json().get("message"))
+    return Task.normalize(response.json()["task"])

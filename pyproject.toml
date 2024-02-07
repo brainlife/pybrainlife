@@ -22,7 +22,7 @@ pybids = "^0.16.3"
 pyjwt = "^2.8.0"
 
 [tool.poetry.dev-dependencies]
-pytest = "^5.2"
+pytest = "*"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"

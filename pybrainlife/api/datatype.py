@@ -8,8 +8,9 @@ from .api import auth_header, services
 from .utils import is_id, nested_dataclass, hydrate
 
 
-def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List['DataType']:
-
+def datatype_query(
+    id=None, name=None, search=None, skip=0, limit=100
+) -> List["DataType"]:
     query = {}
 
     if search:
@@ -40,11 +41,11 @@ def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List['
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-    
+
     return DataType.normalize(res.json()["datatypes"])
 
 
-def datatype_fetch(id) -> Optional['DataType']:
+def datatype_fetch(id) -> Optional["DataType"]:
     datatypes = datatype_query(id=id, limit=1)
     if len(datatypes) == 0:
         return None
@@ -58,7 +59,7 @@ class DataTypeFile:
     name: str
     type: str
     required: bool
-    ext: str = ''
+    ext: str = ""
 
     @staticmethod
     def normalize(data):
@@ -94,24 +95,21 @@ class DataType:
             return [DataType.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["description"] = data["desc"]
-        data["files"] = [
-            DataTypeFile.normalize(file)
-            for file in data["files"]
-        ]
-        default_validator = ""  
-        data['validator'] = data.get('validator', default_validator)
+        data["files"] = [DataTypeFile.normalize(file) for file in data["files"]]
+        default_validator = ""
+        data["validator"] = data.get("validator", default_validator)
         return DataType(**data)
-    
+
     def __getitem__(self, key):
         return getattr(self, key)
-    
+
     def to_json(self):
         return {
             "_id": self.id,
             "name": self.name,
             "description": self.description,
             "files": [f.to_json() for f in self.files],
-            "validator": self.validator
+            "validator": self.validator,
         }
 
 
@@ -132,4 +130,3 @@ class DataTypeTag:
 
     def __repr__(self):
         return ("!" if self.negate else "") + self.name
-    

@@ -1,6 +1,13 @@
-from pybrainlife.api.resource import resource_create, resource_query, find_best_resource, resource_delete, resource_update
+from pybrainlife.api.resource import (
+    resource_create,
+    resource_query,
+    find_best_resource,
+    resource_delete,
+    resource_update,
+)
 
 from pybrainlife.cli.utils import logged_in_user_details
+
 
 def test_create_resource():
     # global resource
@@ -25,6 +32,7 @@ def test_create_resource():
     # assert resource.active == active
     pass
 
+
 def test_query_resource():
     # resources = resource_query(id=resource.id)
     # assert resources is not None
@@ -39,6 +47,7 @@ def test_query_resource():
     # assert resourceReturned.active == resource.active
     pass
 
+
 def test_update_resource():
     # resource.name = "test resource updated"
     # resource.active = False
@@ -50,12 +59,14 @@ def test_update_resource():
     # assert response['active'] == resource.active
     pass
 
+
 def test_delete_resource():
     # resource_delete(resource.id)
     # response = resource_delete(resource.id)
     # assert response is not None
     # assert response['status'] == 'ok'
     pass
+
 
 def test_find_best_resource():
     # service = "soichih/sca-product-raw"
@@ -75,4 +86,3 @@ def test_find_best_resource():
     # assert resource.active is not None
     # assert resource.gids is not None
     pass
-

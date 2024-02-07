@@ -55,11 +55,9 @@ def ensure_auth():
     if token is None:
         raise Exception("Not authenticated")
 
-    jwt.decode(
-        token,
-        options={"verify_signature": False, "verify_exp": True}
-      )
-    
+    jwt.decode(token, options={"verify_signature": False, "verify_exp": True})
+
+
 def logged_in_user_details():
     token = get_auth()
     if token is None:
@@ -70,15 +68,20 @@ def logged_in_user_details():
 def validate_branch(github_repo, branch):
     try:
         headers = {"User-Agent": "brainlife CLI"}
-        response = requests.get(f'https://api.github.com/repos/{github_repo}/branches', headers=headers)
+        response = requests.get(
+            f"https://api.github.com/repos/{github_repo}/branches", headers=headers
+        )
         response.raise_for_status()
 
         branches = response.json()
-        if not any(branch == valid_branch['name'] for valid_branch in branches):
-            raise ValueError(f"The given github branch ({branch}) does not exist for {github_repo}")
+        if not any(branch == valid_branch["name"] for valid_branch in branches):
+            raise ValueError(
+                f"The given github branch ({branch}) does not exist for {github_repo}"
+            )
     except Exception as err:
         raise Exception(f"Error checking branch: {err}")
-    return branch 
+    return branch
+
 
 def find_or_create_instance(app, project, instance_id=None):
     if instance_id:
@@ -86,54 +89,59 @@ def find_or_create_instance(app, project, instance_id=None):
         if not instance:
             raise Exception(f"Instance {instance_id} not found")
     else:
-        new_instance_name = (app['tags'] or 'CLI Process') + "." + str(uuid.uuid4())
+        new_instance_name = (app["tags"] or "CLI Process") + "." + str(uuid.uuid4())
         instance = instance_create(new_instance_name, "(CLI)", project.id)
-    
+
     return instance
+
 
 def fetch_and_map_datatypes():
     """
     Fetches all datatypes using the given query function and maps them by their IDs.
-    
+
     Parameters:
     - datatype_query: A function that accepts a limit parameter and returns a list of datatypes.
-    
+
     Returns:
     - A dictionary mapping datatype IDs to datatypes.
     """
     datatypes = datatype_query(limit=0)
-    datatype_table = {d['id']: d for d in datatypes}
+    datatype_table = {d["id"]: d for d in datatypes}
     return datatype_table
 
 
 def map_app_inputs(app_inputs):
     """
     Maps app inputs by their IDs.
-    
+
     Parameters:
     - app_inputs: A list of app input dictionaries.
-    
+
     Returns:
     - A dictionary mapping app input IDs to app inputs.
     """
-    #using field as id is mapped as field
+    # using field as id is mapped as field
     id_to_app_input_table = {input.field: input for input in app_inputs}
     return id_to_app_input_table
+
 
 def parse_file_id_and_dataset_query_id(input):
     """
     Parses a file ID and dataset query ID from a string.
-    
+
     Parameters:
     - input: A string in the format "file_id:dataset_query_id".
-    
+
     Returns:
     - A tuple containing the file ID and dataset query ID.
     """
     if ":" not in input:
-        raise ValueError(f"Invalid input: {input}, No key given for dataset query. Expected format: file_id:dataset_query_id")
-    file_id, dataset_query = input.split(':')
+        raise ValueError(
+            f"Invalid input: {input}, No key given for dataset query. Expected format: file_id:dataset_query_id"
+        )
+    file_id, dataset_query = input.split(":")
     return file_id.strip(), dataset_query.strip()
+
 
 def validate_datatype_tags(file_id, input, dataset, app_input):
     """
@@ -146,10 +154,15 @@ def validate_datatype_tags(file_id, input, dataset, app_input):
         if tag.startswith("!"):
             required_absent_tag = tag[1:]
             if required_absent_tag in user_input_tags:
-                raise ValueError(f"This app requires that the input data object for {file_id} should NOT have datatype tag '{required_absent_tag}' but found it in {input}")
+                raise ValueError(
+                    f"This app requires that the input data object for {file_id} should NOT have datatype tag '{required_absent_tag}' but found it in {input}"
+                )
         else:
             if tag not in user_input_tags:
-                raise ValueError(f"This app requires that the input data object for {file_id} have datatype tag '{tag}', but it is not set on {input}")
+                raise ValueError(
+                    f"This app requires that the input data object for {file_id} have datatype tag '{tag}', but it is not set on {input}"
+                )
+
 
 def check_missing_inputs(app_inputs, resolved_inputs):
     """
@@ -162,24 +175,28 @@ def check_missing_inputs(app_inputs, resolved_inputs):
     Raises:
     - ValueError: If any required inputs are missing.
     """
-    
-    missing_inputs = [input_field.id for input_field in app_inputs 
-                      if not input_field.optional and input_field.field not in resolved_inputs]
+
+    missing_inputs = [
+        input_field.id
+        for input_field in app_inputs
+        if not input_field.optional and input_field.field not in resolved_inputs
+    ]
     if missing_inputs:
-        missing_input_ids = ', '.join(input for input in missing_inputs)
+        missing_input_ids = ", ".join(input for input in missing_inputs)
         raise ValueError(f"some required inputs are missing: {missing_input_ids}")
+
 
 def prepare_app_config(app, user_options):
     values = {}
     for key in app.config:
         app_param = app.config[key]
         # Adjusted access to 'config' within 'user_options'
-        user_param = user_options.get('config', {}).get(key)
+        user_param = user_options.get("config", {}).get(key)
 
-        if app_param['type'] != 'input':
+        if app_param["type"] != "input":
             if user_param is None:
                 # Ensure 'default' value is safely accessed
-                user_param = app_param.get('default')
+                user_param = app_param.get("default")
             values[key] = user_param
 
     return values
@@ -209,30 +226,42 @@ def collect_unique_dataset_ids(app, inputs):
     return dataset_ids
 
 
-
 def prepare_inputs_and_subdirs(app, inputs, task):
     subdirs = []
     app_inputs = []
 
     for input in app.inputs:
-        keys = [key for key, value in app.config.items() if value.get('input_id') == input.id]
+        keys = [
+            key
+            for key, value in app.config.items()
+            if value.get("input_id") == input.id
+        ]
 
         if input.id in inputs:
-            for user_input in inputs[input['id']]:
-                dataset = next((output for output in task['config']['_outputs'] if output['dataset_id'] == user_input['_id']), None)
+            for user_input in inputs[input["id"]]:
+                dataset = next(
+                    (
+                        output
+                        for output in task["config"]["_outputs"]
+                        if output["dataset_id"] == user_input["_id"]
+                    ),
+                    None,
+                )
                 if dataset:
-                    app_inputs.append({
-                        **dataset,
-                        'id': input['id'],
-                        'task_id': task['_id'],
-                        'keys': keys,
-                    })
+                    app_inputs.append(
+                        {
+                            **dataset,
+                            "id": input["id"],
+                            "task_id": task["_id"],
+                            "keys": keys,
+                        }
+                    )
 
-                    if 'includes' in input:
-                        for include in input['includes'].split("\n"):
+                    if "includes" in input:
+                        for include in input["includes"].split("\n"):
                             subdirs.append(f"include:{dataset['id']}/{include}")
                     else:
-                        subdirs.append(dataset['id'])
+                        subdirs.append(dataset["id"])
 
     return app_inputs, subdirs
 
@@ -240,10 +269,11 @@ def prepare_inputs_and_subdirs(app, inputs, task):
 def compile_metadata(app_inputs):
     meta = {}
     for dataset in app_inputs:
-        for k in ['subject', 'session', 'run']:
-            if k not in meta and k in dataset.get('meta', {}):
-                meta[k] = dataset['meta'][k]
+        for k in ["subject", "session", "run"]:
+            if k not in meta and k in dataset.get("meta", {}):
+                meta[k] = dataset["meta"][k]
     return meta
+
 
 def prepare_outputs(app, opt_tags, inputs, project_id, meta):
     app_outputs = []
@@ -251,37 +281,34 @@ def prepare_outputs(app, opt_tags, inputs, project_id, meta):
     for output in app.outputs:
         # Access attributes directly using dot notation
         output_req = {
-            'id': output.id,
-            'datatype': output.datatype.id,
-            'desc': getattr(output, 'desc', app.name),  # Use getattr for optional attributes
-            'tags': opt_tags,
-            'meta': meta,
-            'archive': {
-                'project': project_id,
-                'desc': f"{output.id} from {app.name}"
-            },
+            "id": output.id,
+            "datatype": output.datatype.id,
+            "desc": getattr(output, "desc", app.name),
+            "tags": opt_tags,
+            "meta": meta,
+            "archive": {"project": project_id, "desc": f"{output.id} from {app.name}"},
         }
 
         # Check for the attribute directly; handle optional attributes with hasattr or provide default values
-        if hasattr(output, 'output_on_root') and output.output_on_root:
-            output_req['files'] = getattr(output, 'files', [])
+        if hasattr(output, "output_on_root") and output.output_on_root:
+            output_req["files"] = getattr(output, "files", [])
         else:
-            output_req['subdir'] = output.id
+            output_req["subdir"] = output.id
 
         # Handle tag pass through
         tags = []
-        if hasattr(output, 'datatype_tags_pass'):
-            input_datasets = inputs.get(getattr(output, 'datatype_tags_pass', ''), [])
+        if hasattr(output, "datatype_tags_pass"):
+            input_datasets = inputs.get(getattr(output, "datatype_tags_pass", ""), [])
             for dataset in input_datasets:
-                if dataset and hasattr(dataset, 'datatype_tags'):
+                if dataset and hasattr(dataset, "datatype_tags"):
                     tags.extend([repr(t) for t in dataset.datatype_tags])
                 if dataset:
                     # Assuming dataset.meta is a dict; update meta directly
-                    output_req['meta'].update(dataset.meta)
+                    output_req["meta"].update(dataset.meta)
 
         tags.extend([repr(t) for t in output.datatype_tags])
 
-        output_req['datatype_tags'] = list(set(tags))  # Remove duplicates
+        output_req["datatype_tags"] = list(set(tags))  # Remove duplicates
 
         app_outputs.append(output_req)
     return app_outputs
@@ -291,37 +318,30 @@ def prepare_config(values, download_task, inputs, datatype_table, app):
     id_to_app_input_table = map_app_inputs(app.inputs)
     result = {}
 
-    # print("----------------------------")
-    # print("app", app)
-    # print("----------------------------")
-    # print("datatype_table", datatype_table)
-    # print("----------------------------")
-    # print("inputs", inputs)
-
     for key, config in app.config.items():
-        if config['type'] == 'input':
-            input_id = config['input_id']
+        if config["type"] == "input":
+            input_id = config["input_id"]
             user_inputs = inputs.get(input_id, [])
             if not user_inputs:
                 continue
             app_input = id_to_app_input_table[input_id]
-            if getattr(app_input, 'multi', False):
+            if getattr(app_input, "multi", False):
                 result[key] = result.get(key, [])
                 for u_input in user_inputs:
                     dtype = datatype_table[u_input.datatype]
                     id_to_file = {file.id: file for file in dtype.files}
-                    input_dtype_file = id_to_file.get(config['file_id'])
+                    input_dtype_file = id_to_file.get(config["file_id"])
                     if input_dtype_file:
                         filepath = f"../{download_task['_id']}/{u_input['_id']}/{input_dtype_file.filename or input_dtype_file.dirname}"
                         result[key].append(filepath)
             else:
                 dtype = datatype_table[user_inputs[0].datatype.id]
                 id_to_file = {file.id: file for file in dtype.files}
-                input_dtype_file = id_to_file.get(config['file_id'])
+                input_dtype_file = id_to_file.get(config["file_id"])
                 if input_dtype_file:
                     filepath = f"../{download_task['_id']}/{user_inputs[0]['_id']}/{input_dtype_file.filename or input_dtype_file.dirname}"
                     result[key] = filepath
         else:
-            result[key] = values.get(key, config.get('default', None))
+            result[key] = values.get(key, config.get("default", None))
 
     return result

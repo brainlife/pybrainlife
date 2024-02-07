@@ -20,11 +20,9 @@ def args(subparser):
 
 
 def run(args):
-
     ensure_auth()
 
     if args.subcommand == "query":
-
         datatypes = datatype_query(args.id, args.query, args.skip, args.limit)
         if not datatypes:
             print("No datatypes found")

@@ -7,11 +7,13 @@ from .utils import nested_dataclass, is_id, hydrate
 from .datatype import datatype_query, DataType, DataTypeTag
 from .api import auth_header, services
 
+
 def get_project_by_id(project_id):
     project = project_query(id=project_id)
     if not project:
         raise Exception(f"Project {project_id} not found")
     return project[0]
+
 
 @hydrate(get_project_by_id)
 @nested_dataclass
@@ -25,7 +27,7 @@ class Project:
     members: List[str]
     guests: List[str]
     removed: bool = False
-    has_public_resource : bool = False
+    has_public_resource: bool = False
 
     @staticmethod
     def normalize(data):
@@ -38,9 +40,7 @@ class Project:
         return Project(**data)
 
 
-def project_query(
-    id=None, name=None, search=None, skip=0, limit=100
-):
+def project_query(id=None, name=None, search=None, skip=0, limit=100):
     query = {}
     if search:
         if is_id(search):
@@ -69,8 +69,9 @@ def project_query(
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-    
+
     return Project.normalize(res.json()["projects"])
+
 
 def project_create(name, description=None, group=None):
     data = {
@@ -92,7 +93,8 @@ def project_create(name, description=None, group=None):
 
     return Project.normalize(res.json())
 
-#only hides the project from the user
+
+# only hides the project from the user
 def project_delete(id):
     url = services["warehouse"] + "/project/" + id
     res = requests.delete(
@@ -104,4 +106,3 @@ def project_delete(id):
         raise Exception(res.json()["message"])
 
     return res.json()
-

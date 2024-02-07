@@ -21,6 +21,7 @@ def test_create_instace():
     assert instance.name == instance_name
     assert instance.project == projectID
 
+
 def test_query_instance():
     instances = instance_query(id=instance.id)
     assert instances is not None
@@ -29,9 +30,8 @@ def test_query_instance():
     assert instanceReturned.id == instance.id
     assert instanceReturned.name == instance.name
 
+
 # def test_task_run():
-
-
 
 
 # def test_retrieve_project_by_id():

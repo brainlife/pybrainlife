@@ -14,7 +14,6 @@ projectID = None
 init_auth()
 
 
-
 # @pytest.mark.skip("Check for integration test environment")
 # @pytest.mark.dependency()
 def test_create_project():

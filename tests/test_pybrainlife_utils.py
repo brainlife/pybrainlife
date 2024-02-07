@@ -2,7 +2,6 @@ from pybrainlife.api.utils import nested_dataclass, hydrate
 
 
 def test_hydrate():
-
     def custom_class_fetch(id):
         return CustomClass.normalize({"_id": id, "desc": "test" + id[-1]})
 
@@ -31,9 +30,10 @@ def test_hydrate():
     assert cust.id == "000000000000000000000001"
     assert cust.name == "test1"
 
-
     def different_class_fetch(id):
-        return DifferentClass.normalize({"_id": id, "custom": "000000000000000000000000"})
+        return DifferentClass.normalize(
+            {"_id": id, "custom": "000000000000000000000000"}
+        )
 
     @hydrate(different_class_fetch)
     @nested_dataclass

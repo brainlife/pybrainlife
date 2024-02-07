@@ -21,14 +21,27 @@ def args(subparser):
 
     subparser = subparsers.add_parser("upload", help="Upload data")
     subparser.add_argument("-p", "--project", help="Project ID", required=True)
-    subparser.add_argument("-d", "--datatype", help="Datatype name or ID", required=True)
+    subparser.add_argument(
+        "-d", "--datatype", help="Datatype name or ID", required=True
+    )
     subparser.add_argument("--datatype_tag", action="append", help="Datatype tags")
     subparser.add_argument("-t", "--tag", action="append", help="Dataset tags")
     subparser.add_argument("-n", "--description", help="Description of the dataset")
-    subparser.add_argument("-s", "--subject", help="(metadata) subject of the uploaded dataset", required=True)
-    subparser.add_argument("-e", "--session", help="(metadata) session of the uploaded dataset")
+    subparser.add_argument(
+        "-s",
+        "--subject",
+        help="(metadata) subject of the uploaded dataset",
+        required=True,
+    )
+    subparser.add_argument(
+        "-e", "--session", help="(metadata) session of the uploaded dataset"
+    )
     subparser.add_argument("-r", "--run", help="(metadata) run of the uploaded dataset")
-    subparser.add_argument("-m", "--meta", help="file path for a sidecar JSON file containing additional metadata")
+    subparser.add_argument(
+        "-m",
+        "--meta",
+        help="file path for a sidecar JSON file containing additional metadata",
+    )
     subparser.add_argument("-j", "--json", help="Output as JSON", action="store_true")
 
 
@@ -40,7 +53,6 @@ def run(args, unknown):
 
 
 def run_upload(args, unknown):
-
     datatypes = datatype_query(search=args.datatype)
     if not datatypes:
         print(f"No datatypes found for {args.datatype}")
@@ -51,10 +63,9 @@ def run_upload(args, unknown):
     # TODO better help message
     parser = argparse.ArgumentParser(add_help=False)
     for file in datatype.files:
-        filetype = {'f': 'file', 'd': 'directory'}[file.type]
+        filetype = {"f": "file", "d": "directory"}[file.type]
         parser.add_argument(
-            f"--{file.field}", help=f"{file.name} ({filetype})",
-            required=file.required
+            f"--{file.field}", help=f"{file.name} ({filetype})", required=file.required
         )
     files_args = vars(parser.parse_args(unknown))
 
