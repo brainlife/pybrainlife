@@ -80,7 +80,6 @@ def validate_branch(github_repo, branch):
             )
     except Exception as err:
         raise Exception(f"Error checking branch: {err}")
-    return branch
 
 
 def api_error(res, message=None):
