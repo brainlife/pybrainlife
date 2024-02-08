@@ -1,38 +1,10 @@
 from dataclasses import field
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Union, Any, Optional, overload
 import json
 import requests
 
-from .utils import nested_dataclass, api_error
+from .utils import nested_dataclass, hydrate, api_error
 from .api import auth_header, services
-
-
-@nested_dataclass
-class Resource:
-    id: str
-    user_id: str
-    name: str
-    admins: List[str]
-    active: bool = True
-    avatar: Optional[str] = None
-    citation: Optional[str] = None
-    config: dict = field(default_factory=dict)
-    envs: dict = field(default_factory=dict)
-    gids: List[int] = field(default_factory=list)
-    status: Optional[str] = None
-    status_msg: Optional[str] = None
-    status_update: Optional[str] = None
-    lastok_date: Optional[str] = None
-    stats: dict = field(default_factory=dict)
-    create_date: Optional[str] = None
-    update_date: Optional[str] = None
-
-    @staticmethod
-    def normalize(data):
-        if isinstance(data, list):
-            return [Resource.normalize(d) for d in data]
-        data["id"] = data["_id"]
-        return Resource(**data)
 
 
 def resource_query(id=None, name=None, skip=0, limit=100):
@@ -57,6 +29,50 @@ def resource_query(id=None, name=None, skip=0, limit=100):
     api_error(res)
 
     return Resource.normalize(res.json()["resources"])
+
+
+def resource_fetch(id) -> Optional["Resource"]:
+    resources = resource_query(id=id, limit=1)
+    if len(resources) == 0:
+        return None
+    return resources[0]
+
+
+@hydrate(resource_fetch)
+@nested_dataclass
+class Resource:
+    id: str
+    user_id: str
+    name: str
+    admins: List[str]
+    active: bool = True
+    avatar: Optional[str] = None
+    citation: Optional[str] = None
+    config: dict = field(default_factory=dict)
+    envs: dict = field(default_factory=dict)
+    gids: List[int] = field(default_factory=list)
+    status: Optional[str] = None
+    status_msg: Optional[str] = None
+    status_update: Optional[str] = None
+    lastok_date: Optional[str] = None
+    stats: dict = field(default_factory=dict)
+    create_date: Optional[str] = None
+    update_date: Optional[str] = None
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Resource"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Resource": ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Resource", List["Resource"]]:
+        if isinstance(data, list):
+            return [Resource.normalize(d) for d in data]
+        data["id"] = data["_id"]
+        return Resource(**data)
 
 
 def resource_create(
@@ -106,7 +122,7 @@ def resource_create(
 
 def resource_update(
     id,
-    config: Dict[str, Any] = None,
+    config: Optional[Dict[str, Any]] = None,
     envs: Optional[Dict[str, Any]] = None,
     avatar: Optional[str] = None,
     hostname: Optional[str] = None,
@@ -156,9 +172,7 @@ def find_best_resource(service: str, group_ids: List[int]) -> Optional[Resource]
     """
     url = services["amaretti"] + "/resource/best"
     headers = {**auth_header()}
-
     params = {"service": service, "gids": group_ids}
-
     res = requests.get(url, headers=headers, params=params)
 
     api_error(res)
@@ -170,21 +184,17 @@ def find_best_resource(service: str, group_ids: List[int]) -> Optional[Resource]
     return Resource.normalize(resource_data["resource"])
 
 
-def test_resource_connectivity(resource_id: str, jwt_token: str) -> str:
+def test_resource_connectivity(resource_id: str) -> str:
     """
     Tests the connectivity and availability of a specific resource.
 
     :param resource_id: The ID of the resource to test.
-    :param jwt_token: A valid JWT token for authorization (not used here as we use auth_header()).
     :return: The status of the resource after testing.
     """
     url = services["amaretti"] + f"/resource/test/{resource_id}"
     headers = {**auth_header()}
+    res = requests.put(url, headers=headers)
 
-    response = requests.put(url, headers=headers)
+    api_error(res)
 
-    if response.status_code == 200:
-        return response.json().get("status", "Unknown status")
-    else:
-        error_message = response.json().get("message", "Error : API request failed")
-        raise Exception(f"Resource test failed: {error_message}")
+    return res.json().get("status", "Unknown status")
