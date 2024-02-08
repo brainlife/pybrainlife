@@ -241,44 +241,36 @@ def app_query(
     if res.status_code != 200:
         raise Exception(res.json()["message"])
 
-    return res.json()["apps"]  # solve in pair programming session
+    # return res.json()["apps"]  # solve in pair programming session
 
-    # return App.normalize(res.json()["apps"])
+    return App.normalize(res.json()["apps"])
 
 
 def app_run(
     app_id, project_id, inputs, config, resource_id=None, tags=None, instance_id=None
 ):
-    # use default config and get that from app
-    # get project
     project = get_project_by_id(project_id)
     if not project:
         raise Exception(f"Project {project_id} not found")
 
-    # get app
     app: App = get_app_by_id(id=app_id)
     if not app:
         raise Exception(f"App {app_id} not found")
 
-    # get config
     config = app.config
 
     app_branch = app.github_branch
-    validate_branch(app.github, app_branch)  # will show error if branch is not valid
+    validate_branch(app.github, app_branch)
 
     group_ids = [project.group]
-    if (
-        project.has_public_resource
-    ):  # Assuming False or None means public resources are allowed
+    if project.has_public_resource:
         group_ids.append(1)
-    # get datatypes
     datatype_table = fetch_and_map_datatypes()
     id_to_app_input_table = map_app_inputs(app.inputs)
 
     all_dataset_ids = []
 
     resolved_inputs = {}
-    # process the inputs
     for input in inputs:
         file_id, dataset_query_id = parse_file_id_and_dataset_query_id(input)
         datasets = dataset_query(id=dataset_query_id, limit=1)
@@ -288,7 +280,7 @@ def app_run(
         if len(datasets) > 1:
             return Exception(f"Multiple data objects matching '{dataset_query_id}'")
         if datasets[0].id not in all_dataset_ids:
-            all_dataset_ids.append(datasets[0].id)  # whats the need of it?
+            all_dataset_ids.append(datasets[0].id)
 
         dataset = datasets[0]
         if dataset.status != "stored":
@@ -319,10 +311,8 @@ def app_run(
         resolved_inputs[file_id] = resolved_inputs.get(file_id, [])
         resolved_inputs[file_id].append(dataset)
 
-    # check if required inputs are set
     check_missing_inputs(app.inputs, resolved_inputs)
 
-    # validate instance
     instance = find_or_create_instance(app, project, instance_id)
 
     config_values = prepare_app_config(app, config)
@@ -342,13 +332,12 @@ def app_run(
     prepared_config = prepare_config(
         config_values, task, resolved_inputs, datatype_table=datatype_table, app=app
     )
-    # Extending the prepared_config with additional properties
     prepared_config.update(
         {
             "_app": app.id,
             "_tid": task.config["_tid"] + 1,
-            "_inputs": app_input_for_task,  # Assuming app_inputs is prepared earlier
-            "_outputs": app_outputs,  # Assuming app_outputs is prepared earlier
+            "_inputs": app_input_for_task,
+            "_outputs": app_outputs,
         }
     )
 
@@ -374,11 +363,11 @@ def app_run(
         submission_params["preferred_resource_id"] = resource
 
     task = task_run_app(submission_params)
-    # return task
 
 
 def get_app_by_id(id) -> App:
-    app = app_query(id=id)
-    if not app:
+    apps = app_query(id=id)
+    if not apps or len(apps) == 0:
         raise Exception(f"App {id} not found")
-    return App.normalize(app[0])
+    app = apps[0]
+    return App.normalize(app)

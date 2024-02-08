@@ -134,19 +134,16 @@ def task_run_app(config):
         headers={**auth_header()},
     )
 
-    # Check if the request was successful
     if response.status_code != 200:
         error_message = response.json().get("message", "Unknown error occurred")
         raise Exception(
             f"Task submission failed: {response.status_code} - {error_message}"
         )
 
-    # Extract the task data from the response
     task_data = response.json().get("task")
     if task_data is None:
         raise Exception("Task data not found in response")
 
-    # Normalize and return the task data as a Task object
     return Task.normalize(task_data)
 
 

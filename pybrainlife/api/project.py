@@ -93,7 +93,6 @@ def project_create(name, description=None, group=None):
     return Project.normalize(res.json())
 
 
-# only hides the project from the user
 def project_delete(id):
     url = services["warehouse"] + "/project/" + id
     res = requests.delete(

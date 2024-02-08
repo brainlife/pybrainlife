@@ -100,18 +100,6 @@ class DataType:
         data["validator"] = data.get("validator", default_validator)
         return DataType(**data)
 
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def to_json(self):
-        return {
-            "_id": self.id,
-            "name": self.name,
-            "description": self.description,
-            "files": [f.to_json() for f in self.files],
-            "validator": self.validator,
-        }
-
 
 @nested_dataclass
 class DataTypeTag:

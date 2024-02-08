@@ -135,7 +135,7 @@ def resource_update(
     res = requests.put(url, json=data, headers={**auth_header()})
 
     if res.status_code != 200:
-        raise Exception(res)  # we only have error codes in the response
+        raise Exception(res)
     return res.json()
 
 
@@ -145,7 +145,7 @@ def resource_delete(id):
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-    return res.json()  # response is a message
+    return res.json()
 
 
 def find_best_resource(service: str, group_ids: List[int]) -> Dict[str, Any]:
@@ -170,11 +170,6 @@ def find_best_resource(service: str, group_ids: List[int]) -> Dict[str, Any]:
     print(resource_data)
     resource_data["resource"] = Resource.normalize(resource_data["resource"])
     return resource_data
-
-
-# Example usage
-# best_resource_info = find_best_resource("your_jwt_token", "soichih/sca-service-life")
-# print(best_resource_info)
 
 
 def test_resource_connectivity(resource_id: str, jwt_token: str) -> str:

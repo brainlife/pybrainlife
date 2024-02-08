@@ -111,7 +111,7 @@ def fetch_and_map_datatypes():
     - A dictionary mapping datatype IDs to datatypes.
     """
     datatypes = datatype_query(limit=0)
-    datatype_table = {d["id"]: d for d in datatypes}
+    datatype_table = {d.id: d for d in datatypes}
     return datatype_table
 
 
