@@ -1,41 +1,9 @@
 import json
 import requests
-from typing import List
+from typing import List, Dict, Union, overload
 
 from .utils import nested_dataclass, is_id, hydrate, api_error
 from .api import auth_header, services
-
-
-def get_project_by_id(project_id):
-    projects = project_query(id=project_id)
-    if not projects:
-        raise Exception(f"Project {project_id} not found")
-    return projects[0]
-
-
-@hydrate(get_project_by_id)
-@nested_dataclass
-class Project:
-    id: str
-    name: str
-    description: str
-    group: int
-
-    admins: List[str]
-    members: List[str]
-    guests: List[str]
-    removed: bool = False
-    has_public_resource: bool = False
-
-    @staticmethod
-    def normalize(data):
-        if isinstance(data, list):
-            return [Project.normalize(d) for d in data]
-        data["id"] = data["_id"]
-        data["group"] = data["group_id"]
-        data["description"] = data["desc"]
-        data["has_public_resource"] = not data.get("noPublicResource", False)
-        return Project(**data)
 
 
 def project_query(id=None, name=None, search=None, skip=0, limit=100):
@@ -66,6 +34,46 @@ def project_query(id=None, name=None, search=None, skip=0, limit=100):
     api_error(res)
 
     return Project.normalize(res.json()["projects"])
+
+
+def project_fetch(project_id):
+    projects = project_query(id=project_id)
+    if not projects:
+        raise Exception(f"Project {project_id} not found")
+    return projects[0]
+
+
+@hydrate(project_fetch)
+@nested_dataclass
+class Project:
+    id: str
+    name: str
+    description: str
+    group: int
+
+    admins: List[str]
+    members: List[str]
+    guests: List[str]
+    removed: bool = False
+    has_public_resource: bool = False
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Project"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Project": ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Project", List["Project"]]:
+        if isinstance(data, list):
+            return [Project.normalize(d) for d in data]
+        data["id"] = data["_id"]
+        data["group"] = data["group_id"]
+        data["description"] = data["desc"]
+        data["has_public_resource"] = not data.get("noPublicResource", False)
+        return Project(**data)
 
 
 def project_create(name, description=None, group=None):
