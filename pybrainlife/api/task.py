@@ -2,7 +2,8 @@ import uuid
 import time
 import json
 import requests
-from typing import List, Optional
+from dataclasses import field
+from typing import List, Dict, Union, Optional, overload
 
 
 from .utils import is_id, nested_dataclass, api_error
@@ -15,10 +16,18 @@ class Instance:
     status: str
     name: Optional[str] = None
     desc: Optional[str] = None
-    config: Optional[dict] = None
+    config: Dict = field(default_factory=dict)
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Instance"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Instance": ...
 
     @staticmethod
-    def normalize(data):
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Instance", List["Instance"]]:
         if isinstance(data, list):
             return [Instance.normalize(d) for d in data]
         data["id"] = data["_id"]
@@ -30,10 +39,18 @@ class Task:
     id: str
     name: str
     status: str
-    config: dict
+    config: Dict = field(default_factory=dict)
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Task"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Task": ...
 
     @staticmethod
-    def normalize(data):
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Task", List["Task"]]:
         if isinstance(data, list):
             return [Task.normalize(d) for d in data]
         data["id"] = data["_id"]
@@ -42,7 +59,7 @@ class Task:
 
 def instance_query(
     id=None, name=None, group=None, search=None, skip=0, limit=100
-) -> Optional[List[Instance]]:
+) -> List[Instance]:
     query = {}
     if search:
         if is_id(search):
@@ -74,7 +91,7 @@ def instance_query(
     return Instance.normalize(res.json()["instances"])
 
 
-def instance_create(name, description=None, project=None):
+def instance_create(name, description=None, project=None) -> Instance:
     data = {
         "name": name,
         "desc": description,
@@ -254,18 +271,18 @@ def stage_datasets(instance_id, dataset_ids):
     return Task.normalize(res.json()["task"])
 
 
-def find_or_create_instance(app, project, instance_id=None):
+def find_or_create_instance(app, project, instance_id=None) -> Instance:
     if instance_id:
-        instance = instance_query(id=instance_id)[0]
-        if not instance:
+        instances = instance_query(id=instance_id)
+        if not instances:
             raise Exception(f"Instance {instance_id} not found")
-        if instance.config.get("removing") == True:
+        if instances[0].config.get("removing") == True:
             raise Exception(
                 f"Instance {instance_id} is being removed and cannot be used"
             )
+        return instances[0]
     else:
         base_tag = ", ".join(app.tags) if app.tags else "CLI Process"
         new_instance_name = base_tag + "." + str(uuid.uuid4())
         instance = instance_create(new_instance_name, "(CLI)" + app.name, project)
-
-    return instance
+        return instance
