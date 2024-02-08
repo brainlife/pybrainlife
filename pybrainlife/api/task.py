@@ -1,22 +1,33 @@
+import uuid
 import time
-from dataclasses import field, fields, dataclass
 import json
 import requests
-from typing import List, Optional
+from dataclasses import field
+from typing import List, Dict, Union, Optional, overload
 
 
-from .utils import is_id, nested_dataclass
+from .utils import is_id, nested_dataclass, api_error
 from .api import auth_header, services
 
 
 @nested_dataclass
 class Instance:
     id: str
-    name: str
     status: str
+    name: Optional[str] = None
+    desc: Optional[str] = None
+    config: Dict = field(default_factory=dict)
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Instance"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Instance": ...
 
     @staticmethod
-    def normalize(data):
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Instance", List["Instance"]]:
         if isinstance(data, list):
             return [Instance.normalize(d) for d in data]
         data["id"] = data["_id"]
@@ -28,10 +39,18 @@ class Task:
     id: str
     name: str
     status: str
-    config: dict
+    config: Dict = field(default_factory=dict)
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Task"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Task": ...
 
     @staticmethod
-    def normalize(data):
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Task", List["Task"]]:
         if isinstance(data, list):
             return [Task.normalize(d) for d in data]
         data["id"] = data["_id"]
@@ -40,7 +59,7 @@ class Task:
 
 def instance_query(
     id=None, name=None, group=None, search=None, skip=0, limit=100
-) -> Optional[List[Instance]]:
+) -> List[Instance]:
     query = {}
     if search:
         if is_id(search):
@@ -67,22 +86,18 @@ def instance_query(
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return None
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Instance.normalize(res.json()["instances"])
 
 
-def instance_create(name, description=None, project=None):
+def instance_create(name, description=None, project=None) -> Instance:
     data = {
         "name": name,
         "desc": description,
     }
     if project:
-        data["config"] = { "brainlife": True }
+        data["config"] = {"brainlife": True}
         data["group_id"] = project.group
 
     res = requests.post(
@@ -90,6 +105,9 @@ def instance_create(name, description=None, project=None):
         json=data,
         headers={**auth_header()},
     )
+
+    api_error(res)
+
     instance = res.json()
     return Instance.normalize(instance)
 
@@ -102,11 +120,42 @@ def task_run(instance, name, service, config) -> Task:
             "instance_id": instance,
             "name": name,
             "service": service,
-            "config": {},
+            "config": config,
         },
         headers={**auth_header()},
     )
+
+    api_error(res)
+
     task = res.json()["task"]
+    return Task.normalize(task)
+
+
+def task_run_app(config):
+    """
+    Submits a task based on the provided configuration.
+
+    Args:
+        config (dict): The configuration for the task submission.
+        services (dict): A dictionary containing service URLs.
+        auth_header (dict): The authentication headers for the request.
+
+    Returns:
+        Task: A normalized Task object representing the submitted task.
+
+    Raises:
+        Exception: If the request fails or the API returns a non-200 status code.
+    """
+    url = services["amaretti"] + "/task"
+    res = requests.post(
+        url,
+        json=config,
+        headers={**auth_header()},
+    )
+
+    api_error(res)
+
+    task = res.json().get("task")
     return Task.normalize(task)
 
 
@@ -139,9 +188,11 @@ class TaskInvalidState(Exception):
     def __init__(self, task=None):
         self.task = task
 
+
 class TaskFailed(Exception):
     def __init__(self, task=None):
         self.task = task
+
 
 class TaskProductArchiveFailed(Exception):
     def __init__(self, task=None):
@@ -163,11 +214,13 @@ def task_wait(id, wait=3):
 
             if task.status == "finished":
                 if "_outputs" in task.config:
-                    datasets_archive = len([
-                        output
-                        for output in task.config['_outputs']
-                        if output['archive']
-                    ])
+                    datasets_archive = len(
+                        [
+                            output
+                            for output in task.config["_outputs"]
+                            if output["archive"]
+                        ]
+                    )
                     if datasets_archive == 0:
                         return []
 
@@ -201,3 +254,35 @@ def task_product_query(id):
         headers={**auth_header()},
     )
     return res.json()
+
+
+def stage_datasets(instance_id, dataset_ids):
+    res = requests.post(
+        services["warehouse"] + "/dataset/stage",
+        json={
+            "instance_id": instance_id,
+            "dataset_ids": dataset_ids,
+        },
+        headers={**auth_header()},
+    )
+
+    api_error(res)
+
+    return Task.normalize(res.json()["task"])
+
+
+def find_or_create_instance(app, project, instance_id=None) -> Instance:
+    if instance_id:
+        instances = instance_query(id=instance_id)
+        if not instances:
+            raise Exception(f"Instance {instance_id} not found")
+        if instances[0].config.get("removing") == True:
+            raise Exception(
+                f"Instance {instance_id} is being removed and cannot be used"
+            )
+        return instances[0]
+    else:
+        base_tag = ", ".join(app.tags) if app.tags else "CLI Process"
+        new_instance_name = base_tag + "." + str(uuid.uuid4())
+        instance = instance_create(new_instance_name, "(CLI)" + app.name, project)
+        return instance

@@ -1,10 +1,11 @@
 import json
-from typing import List, Optional
+from dataclasses import field
+from typing import List, Dict, Union, Optional, overload
 import requests
 from datetime import datetime
 
 from .api import auth_header, services
-from .utils import is_id, nested_dataclass, hydrate
+from .utils import is_id, nested_dataclass, hydrate, api_error
 
 from typing import List
 from .project import Project
@@ -12,11 +13,19 @@ from .datatype import DataType, DataTypeTag
 
 
 def dataset_query(
-    id=None, datatype=None, datatype_tags=None, tags=None,
-    project=None, publication=None, metadata=None,
-    search=None, task=None, skip=0, limit=100
-) -> List['Dataset']:
-
+    id=None,
+    ids=None,
+    datatype=None,
+    datatype_tags=None,
+    tags=None,
+    project=None,
+    publication=None,
+    metadata=None,
+    search=None,
+    task=None,
+    skip=0,
+    limit=100,
+) -> List["Dataset"]:
     query = {}
 
     if search:
@@ -30,6 +39,8 @@ def dataset_query(
     else:
         if id:
             query["_id"] = id
+        if ids:
+            query["_id"] = {"$in": ids}
 
     if datatype:
         query["datatype"] = datatype.id
@@ -41,9 +52,9 @@ def dataset_query(
         query["tags"] = {}
 
         if pos_tags:
-          query["tags"]["$all"] = pos_tags
+            query["tags"]["$all"] = pos_tags
         if neg_tags:
-          query["tags"]["$nin"] = neg_tags
+            query["tags"]["$nin"] = neg_tags
 
     if datatype_tags:
         pos_tags = [t.name for t in datatype_tags if not t.negate]
@@ -52,9 +63,9 @@ def dataset_query(
         query["datatype_tags"] = {}
 
         if pos_tags:
-          query["datatype_tags"]["$all"] = pos_tags
+            query["datatype_tags"]["$all"] = pos_tags
         if neg_tags:
-          query["datatype_tags"]["$nin"] = neg_tags
+            query["datatype_tags"]["$nin"] = neg_tags
 
     if project:
         query["project"] = project.id
@@ -63,7 +74,7 @@ def dataset_query(
         query["publications"] = publication
 
     if task:
-        query['prov.task_id'] = task
+        query["prov.task_id"] = task
 
     if metadata:
         for k, v in metadata.items():
@@ -80,16 +91,12 @@ def dataset_query(
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return []
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Dataset.normalize(res.json()["datasets"])
 
 
-def dataset_fetch(id) -> Optional['Dataset']:
+def dataset_fetch(id) -> Optional["Dataset"]:
     datasets = dataset_query(id=id, limit=1)
     if len(datasets) == 0:
         return None
@@ -106,23 +113,34 @@ class Dataset:
     datatype_tags: List[DataTypeTag]
     tags: List[DataTypeTag]
 
-    metadata: dict
     description: str
     storage: str
-    size: int
+    size: Optional[int]
 
     status: str
     created_at: datetime
     removed: bool
 
+    metadata: Dict = field(default_factory=dict)
+
+    @overload
     @staticmethod
-    def normalize(data):
+    def normalize(data: List[Dict]) -> List["Dataset"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Dataset": ...
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Dataset", List["Dataset"]]:
         if isinstance(data, list):
             return [Dataset.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["description"] = data["desc"]
         data["metadata"] = data["meta"]
-        data["datatype"] = DataType.normalize(data["datatype"])
-        data["datatype_tags"] = DataTypeTag.normalize(data["inputs"])
-        data["tags"] = DataTypeTag.normalize(data["outputs"])
+        data["datatype"] = data["datatype"]
+        data["datatype_tags"] = DataTypeTag.normalize(data["datatype_tags"])
+        data["tags"] = DataTypeTag.normalize(data["tags"])
+        data["created_at"] = data["create_date"]
+        data["size"] = data.get("size", None)
         return Dataset(**data)

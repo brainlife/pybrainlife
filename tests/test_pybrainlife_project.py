@@ -1,6 +1,6 @@
 import pytest
 
-from pybrainlife.cli.utils import set_auth
+from pybrainlife.cli.utils import set_auth, init_auth
 from pybrainlife.api.project import project_create, project_delete, project_query
 from pybrainlife.api.api import login, set_host
 
@@ -8,9 +8,10 @@ projectID = None
 
 
 # TODO decide what to do with this
-set_host("test.brainlife.io")
+# set_host("test.brainlife.io")
 # jwt = login('', '')
 # set_auth(jwt)
+# init_auth()
 
 
 @pytest.mark.skip("Check for integration test environment")

@@ -1,15 +1,14 @@
-from dataclasses import dataclass
-
 import json
-from typing import List, Optional
+from typing import List, Dict, Union, Optional, overload
 import requests
 
 from .api import auth_header, services
-from .utils import is_id, nested_dataclass, hydrate
+from .utils import is_id, nested_dataclass, hydrate, api_error
 
 
-def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List['DataType']:
-
+def datatype_query(
+    id=None, ids=None, name=None, search=None, skip=0, limit=100
+) -> List["DataType"]:
     query = {}
 
     if search:
@@ -20,6 +19,8 @@ def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List['
     else:
         if id:
             query["_id"] = id
+        if ids:
+            query["_id"] = {"$in": ids}
         if name:
             query["name"] = name
 
@@ -35,16 +36,12 @@ def datatype_query(id=None, name=None, search=None, skip=0, limit=100) -> List['
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return []
+    api_error(res)
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
-    
     return DataType.normalize(res.json()["datatypes"])
 
 
-def datatype_fetch(id) -> Optional['DataType']:
+def datatype_fetch(id) -> Optional["DataType"]:
     datatypes = datatype_query(id=id, limit=1)
     if len(datatypes) == 0:
         return None
@@ -58,7 +55,7 @@ class DataTypeFile:
     name: str
     type: str
     required: bool
-    ext: str = ''
+    ext: str = ""
 
     @staticmethod
     def normalize(data):
@@ -84,18 +81,24 @@ class DataType:
     name: str
     description: str
     files: List[DataTypeFile]
-    validator: str
+    validator: Optional[str]
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["DataType"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "DataType": ...
 
     @staticmethod
-    def normalize(data):
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["DataType", List["DataType"]]:
         if isinstance(data, list):
             return [DataType.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["description"] = data["desc"]
-        data["files"] = [
-            DataTypeFile.normalize(file)
-            for file in data["files"]
-        ]
+        data["files"] = [DataTypeFile.normalize(file) for file in data["files"]]
+        data["validator"] = data.get("validator")
         return DataType(**data)
 
 
@@ -104,15 +107,27 @@ class DataTypeTag:
     name: str
     negate: bool
 
+    @overload
     @staticmethod
-    def normalize(data):
+    def normalize(data: List[Dict]) -> List["DataTypeTag"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "DataTypeTag": ...
+
+    @staticmethod
+    def normalize(
+        data: Union[Dict, List[Dict]]
+    ) -> Union["DataTypeTag", List["DataTypeTag"]]:
+        if isinstance(data, list):
+            return [DataTypeTag.normalize(d) for d in data]
         if isinstance(data, str):
             new_data = {"name": data, "negate": False}
             if data.startswith("!"):
                 new_data["name"] = data[1:]
                 new_data["negate"] = True
-            return new_data
-        return data
+            data = new_data
+        return DataTypeTag(**data)
 
     def __repr__(self):
         return ("!" if self.negate else "") + self.name
