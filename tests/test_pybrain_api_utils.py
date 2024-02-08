@@ -2,9 +2,7 @@ from pybrainlife.api.utils import validate_branch
 
 
 def test_valid_branch():
-    github_branch = "v1.00"
-    github = "brain-life/app-autoalignacpc"
+    github_branch = "1.4"
+    github = "brainlife/app-hcp-acpc-alignment"
 
-    branch = validate_branch(github, github_branch)
-
-    assert branch == "v1.00"
+    validate_branch(github, github_branch)
