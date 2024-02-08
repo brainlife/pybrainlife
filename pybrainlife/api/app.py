@@ -107,12 +107,12 @@ def _validate_datatype_tags(field: str, dataset: Dataset, app_input: "AppInputFi
             required_absent_tag = tag[1:]
             if required_absent_tag in user_input_tags:
                 raise ValueError(
-                    f"This app requires that the input data object for \"{field}\" should NOT have datatype tag \"{required_absent_tag}\" but found it in \"{dataset.id}\"."
+                    f'This app requires that the input data object for "{field}" should NOT have datatype tag "{required_absent_tag}" but found it in "{dataset.id}".'
                 )
         else:
             if tag not in user_input_tags:
                 raise ValueError(
-                    f"This app requires that the input data object for \"{field}\" have datatype tag \"{tag}\", but it is not set on \"{dataset.id}\"."
+                    f'This app requires that the input data object for "{field}" have datatype tag "{tag}", but it is not set on "{dataset.id}".'
                 )
 
 
@@ -213,7 +213,7 @@ def _prepare_inputs_and_subdirs(app, inputs, task):
 
 def app_query(
     id=None, name=None, inputs=None, outputs=None, doi=None, skip=0, limit=100
-) -> List['App']:
+) -> List["App"]:
     query = {}
     if id:
         query["_id"] = id
@@ -289,7 +289,7 @@ def app_query(
     return App.normalize(res.json()["apps"])
 
 
-def app_fetch(id) -> 'App':
+def app_fetch(id) -> "App":
     apps = app_query(id=id)
     if not apps or len(apps) == 0:
         raise Exception(f"App {id} not found")
@@ -452,7 +452,7 @@ def app_run(
 
         if dataset.status != "stored":
             raise ValueError(
-                f"Input data object {field}: {dataset_id} has storage status \"{dataset.status}\" and cannot be used until it has been successfully stored."
+                f'Input data object {field}: {dataset_id} has storage status "{dataset.status}" and cannot be used until it has been successfully stored.'
             )
 
         if dataset.removed == True:
