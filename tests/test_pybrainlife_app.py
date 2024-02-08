@@ -1,5 +1,5 @@
-from pybrainlife.api.app import app_run, get_app_by_id
-from pybrainlife.cli.utils import set_auth, init_auth
+from pybrainlife.api.app import app_run, app_fetch
+from pybrainlife.cli.utils import init_auth
 import pytest
 
 init_auth()
@@ -64,7 +64,7 @@ def test_app_run_without_instance():
 
     # instance_id = "65c3ec484028114d9819f8b6"
 
-    # app = get_app_by_id(app_id)
+    # app = app_fetch(app_id)
 
     # # assert 1 == 0
     # app_run(
@@ -89,7 +89,7 @@ def test_app_run_valid_instance():
 
     # instance_id = "65c3ec484028114d9819f8b6"
 
-    # app = get_app_by_id(app_id)
+    # app = app_fetch(app_id)
 
     # # assert 1 == 0
     # app_run(
@@ -125,7 +125,7 @@ def test_app_run_invalid_instance():
 
     # instance_id = "65ba8fb94028114d986cc6ce"
 
-    # app = get_app_by_id(app_id)
+    # app = app_fetch(app_id)
 
     # # assert 1 == 0
     # with pytest.raises(Exception) as exc_info:
