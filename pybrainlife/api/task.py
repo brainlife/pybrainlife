@@ -1,11 +1,11 @@
+import uuid
 import time
-from dataclasses import field, fields, dataclass
 import json
 import requests
 from typing import List, Optional
 
 
-from .utils import is_id, nested_dataclass
+from .utils import is_id, nested_dataclass, api_error
 from .api import auth_header, services
 
 
@@ -13,9 +13,9 @@ from .api import auth_header, services
 class Instance:
     id: str
     status: str
-    name: str = None
-    desc: str = None
-    config: dict = None
+    name: Optional[str] = None
+    desc: Optional[str] = None
+    config: Optional[dict] = None
 
     @staticmethod
     def normalize(data):
@@ -69,11 +69,7 @@ def instance_query(
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return None
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Instance.normalize(res.json()["instances"])
 
@@ -92,6 +88,9 @@ def instance_create(name, description=None, project=None):
         json=data,
         headers={**auth_header()},
     )
+
+    api_error(res)
+
     instance = res.json()
     return Instance.normalize(instance)
 
@@ -108,6 +107,9 @@ def task_run(instance, name, service, config) -> Task:
         },
         headers={**auth_header()},
     )
+
+    api_error(res)
+
     task = res.json()["task"]
     return Task.normalize(task)
 
@@ -128,23 +130,16 @@ def task_run_app(config):
         Exception: If the request fails or the API returns a non-200 status code.
     """
     url = services["amaretti"] + "/task"
-    response = requests.post(
+    res = requests.post(
         url,
         json=config,
         headers={**auth_header()},
     )
 
-    if response.status_code != 200:
-        error_message = response.json().get("message", "Unknown error occurred")
-        raise Exception(
-            f"Task submission failed: {response.status_code} - {error_message}"
-        )
+    api_error(res)
 
-    task_data = response.json().get("task")
-    if task_data is None:
-        raise Exception("Task data not found in response")
-
-    return Task.normalize(task_data)
+    task = res.json().get("task")
+    return Task.normalize(task)
 
 
 def task_wait_dataset(id):
@@ -245,7 +240,7 @@ def task_product_query(id):
 
 
 def stage_datasets(instance_id, dataset_ids):
-    response = requests.post(
+    res = requests.post(
         services["warehouse"] + "/dataset/stage",
         json={
             "instance_id": instance_id,
@@ -253,6 +248,24 @@ def stage_datasets(instance_id, dataset_ids):
         },
         headers={**auth_header()},
     )
-    if response.status_code != 200:
-        raise Exception(response.json().get("message"))
-    return Task.normalize(response.json()["task"])
+
+    api_error(res)
+
+    return Task.normalize(res.json()["task"])
+
+
+def find_or_create_instance(app, project, instance_id=None):
+    if instance_id:
+        instance = instance_query(id=instance_id)[0]
+        if not instance:
+            raise Exception(f"Instance {instance_id} not found")
+        if instance.config.get("removing") == True:
+            raise Exception(
+                f"Instance {instance_id} is being removed and cannot be used"
+            )
+    else:
+        base_tag = ", ".join(app.tags) if app.tags else "CLI Process"
+        new_instance_name = base_tag + "." + str(uuid.uuid4())
+        instance = instance_create(new_instance_name, "(CLI)" + app.name, project)
+
+    return instance

@@ -81,3 +81,16 @@ def validate_branch(github_repo, branch):
     except Exception as err:
         raise Exception(f"Error checking branch: {err}")
     return branch
+
+
+def api_error(res, message=None):
+    if res.status_code == 404:
+        raise Exception("Not found")
+    if res.status_code != 200:
+        exc = Exception(message or "Unknown error occurred")
+        try:
+            data = res.json()
+            exc = Exception(data.get("message", message))
+        except:
+            pass
+        raise exc

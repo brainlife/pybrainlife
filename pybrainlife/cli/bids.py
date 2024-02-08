@@ -1,15 +1,12 @@
 import os
 import io
 import json
-import time
 import tarfile
-import argparse
 import requests
 
-from bids.layout import BIDSLayout, Query
+from bids.layout import BIDSLayout
 
 from .utils import ensure_auth
-from ..api.datatype import datatype_query
 from ..api.project import project_query
 from ..api.task import instance_query, task_run, task_wait_dataset, task_wait
 from ..api.api import auth_header, services
@@ -113,9 +110,6 @@ def run_upload(args, unknown):
         data=stream_fp,
         headers={**auth_header()},
     )
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
 
     res = requests.post(
         services["warehouse"] + "/dataset/finalize-upload",

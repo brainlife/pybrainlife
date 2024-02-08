@@ -1,9 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import List, Optional, Dict, Any
 import json
 import requests
 
-from .utils import nested_dataclass
+from .utils import nested_dataclass, api_error
 from .api import auth_header, services
 
 
@@ -54,8 +54,7 @@ def resource_query(id=None, name=None, skip=0, limit=100):
         headers={**auth_header()},
     )
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Resource.normalize(res.json()["resources"])
 
@@ -100,8 +99,7 @@ def resource_create(
     url = services["amaretti"] + "/resource"
     res = requests.post(url, json=data, headers={**auth_header()})
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Resource.normalize(res.json())
 
@@ -134,8 +132,8 @@ def resource_update(
     url = services["amaretti"] + "/resource/" + id
     res = requests.put(url, json=data, headers={**auth_header()})
 
-    if res.status_code != 200:
-        raise Exception(res)
+    api_error(res)
+
     return res.json()
 
 
@@ -143,12 +141,12 @@ def resource_delete(id):
     url = services["amaretti"] + "/resource/" + id
     res = requests.delete(url, headers={**auth_header()})
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
+
     return res.json()
 
 
-def find_best_resource(service: str, group_ids: List[int]) -> Dict[str, Any]:
+def find_best_resource(service: str, group_ids: List[int]) -> Optional[Resource]:
     """
     Finds the best resource to run a specified service.
 
@@ -161,15 +159,15 @@ def find_best_resource(service: str, group_ids: List[int]) -> Dict[str, Any]:
 
     params = {"service": service, "gids": group_ids}
 
-    response = requests.get(url, headers=headers, params=params)
+    res = requests.get(url, headers=headers, params=params)
 
-    if response.status_code != 200:
-        raise Exception(f"API request failed: {response.text}")
+    api_error(res)
 
-    resource_data = response.json()
-    print(resource_data)
-    resource_data["resource"] = Resource.normalize(resource_data["resource"])
-    return resource_data
+    resource_data = res.json()
+    if not resource_data["resource"]:
+        return None
+
+    return Resource.normalize(resource_data["resource"])
 
 
 def test_resource_connectivity(resource_id: str, jwt_token: str) -> str:

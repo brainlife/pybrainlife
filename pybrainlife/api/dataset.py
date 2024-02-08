@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 
 from .api import auth_header, services
-from .utils import is_id, nested_dataclass, hydrate
+from .utils import is_id, nested_dataclass, hydrate, api_error
 
 from typing import List
 from .project import Project
@@ -88,11 +88,7 @@ def dataset_query(
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return []
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Dataset.normalize(res.json()["datasets"])
 

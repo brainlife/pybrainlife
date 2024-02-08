@@ -9,32 +9,28 @@ from ..cli.utils import (
     check_missing_inputs,
     collect_unique_dataset_ids,
     compile_metadata,
-    fetch_and_map_datatypes,
-    find_or_create_instance,
-    map_app_inputs,
-    parse_file_id_and_dataset_query_id,
     prepare_app_config,
     prepare_config,
     prepare_inputs_and_subdirs,
     prepare_outputs,
     validate_datatype_tags,
 )
-from .utils import nested_dataclass, is_id
+from .utils import nested_dataclass, api_error
 from .datatype import datatype_query, DataType, DataTypeTag
 from .api import auth_header, services
 from .project import get_project_by_id
 from .task import (
-    instance_query,
-    instance_create,
+    find_or_create_instance,
     stage_datasets,
-    task_run,
     task_run_app,
 )
 from .utils import validate_branch
 from .dataset import dataset_query
-import math
-import uuid
 from typing import List
+
+
+PUBLIC_RESOURCES_GID = 1
+
 
 
 @nested_dataclass
@@ -46,13 +42,11 @@ class AppField:
 
     @overload
     @staticmethod
-    def normalize(data: List[Dict]) -> List["AppField"]:
-        ...
+    def normalize(data: List[Dict]) -> List["AppField"]: ...
 
     @overload
     @staticmethod
-    def normalize(data: Dict) -> "AppField":
-        ...
+    def normalize(data: Dict) -> "AppField": ...
 
     @staticmethod
     def normalize(data: Union[Dict, List[Dict]]) -> Union["AppField", List["AppField"]]:
@@ -75,13 +69,11 @@ class AppInputField(AppField):
 
     @overload
     @staticmethod
-    def normalize(data: List[Dict]) -> List["AppInputField"]:
-        ...
+    def normalize(data: List[Dict]) -> List["AppInputField"]: ...
 
     @overload
     @staticmethod
-    def normalize(data: Dict) -> "AppInputField":
-        ...
+    def normalize(data: Dict) -> "AppInputField": ...
 
     @staticmethod
     def normalize(
@@ -104,13 +96,11 @@ class AppOutputField(AppField):
 
     @overload
     @staticmethod
-    def normalize(data: List[Dict]) -> List["AppOutputField"]:
-        ...
+    def normalize(data: List[Dict]) -> List["AppOutputField"]: ...
 
     @overload
     @staticmethod
-    def normalize(data: Dict) -> "AppOutputField":
-        ...
+    def normalize(data: Dict) -> "AppOutputField": ...
 
     @staticmethod
     def normalize(
@@ -140,13 +130,11 @@ class App:
 
     @overload
     @staticmethod
-    def normalize(data: List[Dict]) -> List["App"]:
-        ...
+    def normalize(data: List[Dict]) -> List["App"]: ...
 
     @overload
     @staticmethod
-    def normalize(data: Dict) -> "App":
-        ...
+    def normalize(data: Dict) -> "App": ...
 
     @staticmethod
     def normalize(data: Union[Dict, List[Dict]]) -> Union["App", List["App"]]:
@@ -235,12 +223,7 @@ def app_query(
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return None
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
-
+    api_error(res)
 
     return App.normalize(res.json()["apps"])
 
@@ -256,22 +239,33 @@ def app_run(
     if not app:
         raise Exception(f"App {app_id} not found")
 
-    config = app.config
-
     app_branch = app.github_branch
     validate_branch(app.github, app_branch)
 
     group_ids = [project.group]
     if project.has_public_resource:
-        group_ids.append(1)
-    datatype_table = fetch_and_map_datatypes()
-    id_to_app_input_table = map_app_inputs(app.inputs)
+        group_ids.append(PUBLIC_RESOURCES_GID)
+
+    datatypes = datatype_query(
+        ids=[input.datatype.id for input in app.inputs], limit=len(app.inputs)
+    )
+    datatypes = {d.id: d for d in datatypes}
+    app_inputs = {input.field: input for input in app.inputs}
 
     all_dataset_ids = []
-
     resolved_inputs = {}
-    for input in inputs:
-        file_id, dataset_query_id = parse_file_id_and_dataset_query_id(input)
+    for file_id, dataset_query_id in inputs.items():
+        app_input = app_inputs[file_id]
+        if not app_input:
+            raise Exception(f'This app\'s config does not include "{file_id}"')
+
+        if not app_input.datatype:
+            raise Exception(
+                f"Given input of datatype {datatypes[dataset.datatype].name} but "
+                f"expected {datatypes[app_input.datatype].name} when checking "
+                f"{file_id}: {dataset_query_id}"
+            )
+
         datasets = dataset_query(id=dataset_query_id, limit=1)
 
         if len(datasets) == 0:
@@ -284,25 +278,12 @@ def app_run(
         dataset = datasets[0]
         if dataset.status != "stored":
             raise ValueError(
-                f"Input data object {input} has storage status '{dataset.status}' and cannot be used until it has been successfully stored."
+                f"Input data object {file_id}: {dataset_query_id} has storage status '{dataset.status}' and cannot be used until it has been successfully stored."
             )
 
         if dataset.removed == True:
             raise ValueError(
-                f"Input data object {input} has been removed and cannot be used."
-            )
-
-        app_input = id_to_app_input_table[file_id]
-        if not app_input:
-            raise Exception("This app's config does not include key '" + file_id + "'")
-        if not app_input.datatype:
-            raise Exception(
-                "Given input of datatype "
-                + datatype_table[dataset.datatype].name
-                + " but expected "
-                + datatype_table[app_input.datatype].name
-                + " when checking "
-                + input
+                f"Input data object {file_id}: {dataset_query_id} has been removed and cannot be used."
             )
 
         validate_datatype_tags(file_id, input, dataset, app_input)
@@ -313,11 +294,7 @@ def app_run(
     check_missing_inputs(app.inputs, resolved_inputs)
 
     instance = find_or_create_instance(app, project, instance_id)
-
-    config_values = prepare_app_config(app, config)
-
     unique_dataset_ids = collect_unique_dataset_ids(app, inputs)
-
     task = stage_datasets(instance.id, unique_dataset_ids)
 
     app_input_for_task, app_subdir_for_task = prepare_inputs_and_subdirs(
@@ -325,11 +302,12 @@ def app_run(
     )
 
     meta = compile_metadata(app_input_for_task)
-
     app_outputs = prepare_outputs(app, tags, resolved_inputs, project_id, meta)
 
+    config = app.config
+    config_values = prepare_app_config(app, config)
     prepared_config = prepare_config(
-        config_values, task, resolved_inputs, datatype_table=datatype_table, app=app
+        config_values, task, resolved_inputs, datatypes=datatypes, app=app
     )
     prepared_config.update(
         {

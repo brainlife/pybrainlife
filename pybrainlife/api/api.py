@@ -1,6 +1,8 @@
-import json
 from typing import Dict, Optional
 import requests
+
+from .utils import api_error
+
 
 host = None
 services = {}
@@ -72,8 +74,7 @@ def login(username, password, ldap=False, ttl=7) -> str:
             "ttl": 1000 * 60 * 60 * 24 * ttl,
         },
     )
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     jwt = res.json()["jwt"]
     return jwt

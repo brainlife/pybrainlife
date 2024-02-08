@@ -5,11 +5,11 @@ from typing import List, Optional
 import requests
 
 from .api import auth_header, services
-from .utils import is_id, nested_dataclass, hydrate
+from .utils import is_id, nested_dataclass, hydrate, api_error
 
 
 def datatype_query(
-    id=None, name=None, search=None, skip=0, limit=100
+    id=None, ids=None, name=None, search=None, skip=0, limit=100
 ) -> List["DataType"]:
     query = {}
 
@@ -21,6 +21,8 @@ def datatype_query(
     else:
         if id:
             query["_id"] = id
+        if ids:
+            query["_id"] = {"$in": ids}
         if name:
             query["name"] = name
 
@@ -36,11 +38,7 @@ def datatype_query(
         headers={**auth_header()},
     )
 
-    if res.status_code == 404:
-        return []
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return DataType.normalize(res.json()["datatypes"])
 

@@ -1,9 +1,6 @@
 import os
 import io
-import json
-import time
 import tarfile
-import argparse
 from typing import List
 import requests
 
@@ -18,6 +15,7 @@ from ...api.task import (
     task_wait,
 )
 from ...api.api import auth_header, services
+from ...api.utils import api_error
 
 
 def build_tar(datatype, files):
@@ -86,8 +84,7 @@ def upload_dataset(
         headers={**auth_header()},
     )
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     res = requests.post(
         services["warehouse"] + "/dataset/finalize-upload",
@@ -103,6 +100,9 @@ def upload_dataset(
         },
         headers={**auth_header()},
     )
+
+    api_error(res)
+
     upload_data = res.json()
 
     if "validator_task" in upload_data:

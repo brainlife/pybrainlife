@@ -2,16 +2,15 @@ import json
 import requests
 from typing import List
 
-from .utils import nested_dataclass, is_id, hydrate
-from .datatype import datatype_query, DataType, DataTypeTag
+from .utils import nested_dataclass, is_id, hydrate, api_error
 from .api import auth_header, services
 
 
 def get_project_by_id(project_id):
-    project = project_query(id=project_id)
-    if not project:
+    projects = project_query(id=project_id)
+    if not projects:
         raise Exception(f"Project {project_id} not found")
-    return project[0]
+    return projects[0]
 
 
 @hydrate(get_project_by_id)
@@ -63,11 +62,8 @@ def project_query(id=None, name=None, search=None, skip=0, limit=100):
         },
         headers={**auth_header()},
     )
-    if res.status_code == 404:
-        return None
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Project.normalize(res.json()["projects"])
 
@@ -87,8 +83,7 @@ def project_create(name, description=None, group=None):
         headers={**auth_header()},
     )
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     return Project.normalize(res.json())
 
@@ -99,7 +94,4 @@ def project_delete(id):
         url,
         headers={**auth_header()},
     )
-
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
-    return res.json()
+    api_error(res)

@@ -11,8 +11,8 @@ def test_app_run_fail_incorrect_inputs():
     # project_id = "6566f998b094062da65337ef"
     # app_id = "5f3593e84615e04651bf9364"
     # inputs = {
-    #     "t1: 656fc8a1d0ae0de207f3f315",
-    #     "t2: 65c3f736745ef7acd7bcf08b",
+    #     "t1": "656fc8a1d0ae0de207f3f315",
+    #     "t2": "65c3f736745ef7acd7bcf08b",
     # }
 
     # with pytest.raises(KeyError) as exc_info:
@@ -37,8 +37,8 @@ def test_app_run_multiple_different_inputs():
     # app_id = "5f3593e84615e04651bf9364"
     # # login and then run app in one of my project in brainlife
     # inputs = {
-    #     "t1: 656fc8a1d0ae0de207f3f315",
-    #     "func: 65c3f7a7745ef7acd7bcfa87",
+    #     "t1": "656fc8a1d0ae0de207f3f315",
+    #     "func": "65c3f7a7745ef7acd7bcfa87",
     # }
 
     # # assert 1 == 0
@@ -59,7 +59,7 @@ def test_app_run_without_instance():
     # app_id = "59714d376c3b7e0029153f53"
     # # login and then run app in one of my project in brainlife
     # inputs = {
-    #     "t1: 65b030124ce5ac2907f81c48",
+    #     "t1": "65b030124ce5ac2907f81c48",
     # }
 
     # instance_id = "65c3ec484028114d9819f8b6"
@@ -84,7 +84,7 @@ def test_app_run_valid_instance():
     # app_id = "59714d376c3b7e0029153f53"
     # # login and then run app in one of my project in brainlife
     # inputs = {
-    #     "t1: 65b030124ce5ac2907f81c48",
+    #     "t1": "65b030124ce5ac2907f81c48",
     # }
 
     # instance_id = "65c3ec484028114d9819f8b6"
@@ -120,7 +120,7 @@ def test_app_run_invalid_instance():
     # app_id = "59714d376c3b7e0029153f53"
     # # login and then run app in one of my project in brainlife
     # inputs = {
-    #     "t1: 65b030124ce5ac2907f81c48",
+    #     "t1": "65b030124ce5ac2907f81c48",
     # }
 
     # instance_id = "65ba8fb94028114d986cc6ce"
