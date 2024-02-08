@@ -1,6 +1,6 @@
 import json
-from typing import List, Optional
 from dataclasses import field
+from typing import List, Dict, Union, Optional, overload
 import requests
 from datetime import datetime
 
@@ -14,6 +14,7 @@ from .datatype import DataType, DataTypeTag
 
 def dataset_query(
     id=None,
+    ids=None,
     datatype=None,
     datatype_tags=None,
     tags=None,
@@ -38,6 +39,8 @@ def dataset_query(
     else:
         if id:
             query["_id"] = id
+        if ids:
+            query["_id"] = {"$in": ids}
 
     if datatype:
         query["datatype"] = datatype.id
@@ -118,16 +121,24 @@ class Dataset:
     created_at: datetime
     removed: bool
 
-    metadata: dict = field(default_factory=dict)
+    metadata: Dict = field(default_factory=dict)
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["Dataset"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "Dataset": ...
 
     @staticmethod
-    def normalize(data):
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["Dataset", List["Dataset"]]:
         if isinstance(data, list):
             return [Dataset.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["description"] = data["desc"]
         data["metadata"] = data["meta"]
-        data["datatype"] = DataType.normalize(data["datatype"])
+        data["datatype"] = data["datatype"]
         data["datatype_tags"] = DataTypeTag.normalize(data["datatype_tags"])
         data["tags"] = DataTypeTag.normalize(data["tags"])
         data["created_at"] = data["create_date"]
