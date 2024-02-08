@@ -18,7 +18,7 @@ pytest = "^5.2"
 pytest-dependency = "^0.6.0"
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.12.1"
+black = "^24.1.1"
 
 [tool.poetry.group.science]
 optional = true
