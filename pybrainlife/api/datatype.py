@@ -1,7 +1,5 @@
-from dataclasses import dataclass
-
 import json
-from typing import List, Optional
+from typing import List, Dict, Union, Optional, overload
 import requests
 
 from .api import auth_header, services
@@ -83,19 +81,24 @@ class DataType:
     name: str
     description: str
     files: List[DataTypeFile]
-    validator: str
+    validator: Optional[str]
+
+    @overload
+    @staticmethod
+    def normalize(data: List[Dict]) -> List["DataType"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "DataType": ...
 
     @staticmethod
-    def normalize(data):
-        if isinstance(data, str):
-            return datatype_fetch(data)
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["DataType", List["DataType"]]:
         if isinstance(data, list):
             return [DataType.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["description"] = data["desc"]
         data["files"] = [DataTypeFile.normalize(file) for file in data["files"]]
-        default_validator = ""
-        data["validator"] = data.get("validator", default_validator)
+        data["validator"] = data.get("validator")
         return DataType(**data)
 
 
@@ -104,15 +107,27 @@ class DataTypeTag:
     name: str
     negate: bool
 
+    @overload
     @staticmethod
-    def normalize(data):
+    def normalize(data: List[Dict]) -> List["DataTypeTag"]: ...
+
+    @overload
+    @staticmethod
+    def normalize(data: Dict) -> "DataTypeTag": ...
+
+    @staticmethod
+    def normalize(
+        data: Union[Dict, List[Dict]]
+    ) -> Union["DataTypeTag", List["DataTypeTag"]]:
+        if isinstance(data, list):
+            return [DataTypeTag.normalize(d) for d in data]
         if isinstance(data, str):
             new_data = {"name": data, "negate": False}
             if data.startswith("!"):
                 new_data["name"] = data[1:]
                 new_data["negate"] = True
-            return new_data
-        return data
+            data = new_data
+        return DataTypeTag(**data)
 
     def __repr__(self):
         return ("!" if self.negate else "") + self.name
