@@ -125,7 +125,6 @@ def map_app_inputs(app_inputs):
     Returns:
     - A dictionary mapping app input IDs to app inputs.
     """
-    # using field as id is mapped as field
     id_to_app_input_table = {input.field: input for input in app_inputs}
     return id_to_app_input_table
 
@@ -195,12 +194,10 @@ def prepare_app_config(app, user_options):
     values = {}
     for key in app.config:
         app_param = app.config[key]
-        # Adjusted access to 'config' within 'user_options'
         user_param = user_options.get("config", {}).get(key)
 
         if app_param["type"] != "input":
             if user_param is None:
-                # Ensure 'default' value is safely accessed
                 user_param = app_param.get("default")
             values[key] = user_param
 
@@ -209,9 +206,6 @@ def prepare_app_config(app, user_options):
 
 def collect_unique_dataset_ids(app, inputs):
     dataset_ids = []
-
-    # Convert inputs into a dictionary if it's not already one
-    # Assuming inputs is supposed to be {'t1': '65b030124ce5ac2907f81c48'}
     if isinstance(inputs, set):
         inputs_dict = {}
         for item in inputs:
@@ -221,12 +215,10 @@ def collect_unique_dataset_ids(app, inputs):
         inputs_dict = inputs
 
     for input_field in app.inputs:
-        # Use input_field.field to check and extract dataset ID
         if input_field.field in inputs_dict:
             dataset_id = inputs_dict[input_field.field]
             dataset_ids.append(dataset_id)
 
-    # Removing duplicates
     dataset_ids = list(set(dataset_ids))
     return dataset_ids
 
@@ -283,7 +275,6 @@ def compile_metadata(app_inputs):
 def prepare_outputs(app, opt_tags, inputs, project_id, meta):
     app_outputs = []
     for output in app.outputs:
-        # Access attributes directly using dot notation
         output_req = {
             "id": output.id,
             "datatype": output.datatype.id,
@@ -293,13 +284,11 @@ def prepare_outputs(app, opt_tags, inputs, project_id, meta):
             "archive": {"project": project_id, "desc": f"{output.id} from {app.name}"},
         }
 
-        # Check for the attribute directly; handle optional attributes with hasattr or provide default values
         if hasattr(output, "output_on_root") and output.output_on_root:
             output_req["files"] = getattr(output, "files", [])
         else:
             output_req["subdir"] = output.id
 
-        # Handle tag pass through
         tags = []
         if hasattr(output, "datatype_tags_pass"):
             input_datasets = inputs.get(getattr(output, "datatype_tags_pass", ""), [])
@@ -307,12 +296,11 @@ def prepare_outputs(app, opt_tags, inputs, project_id, meta):
                 if dataset and hasattr(dataset, "datatype_tags"):
                     tags.extend([repr(t) for t in dataset.datatype_tags])
                 if dataset:
-                    # Assuming dataset.meta is a dict; update meta directly
                     output_req["meta"].update(dataset.meta)
 
         tags.extend([repr(t) for t in output.datatype_tags])
 
-        output_req["datatype_tags"] = list(set(tags))  # Remove duplicates
+        output_req["datatype_tags"] = list(set(tags))  
 
         app_outputs.append(output_req)
     return app_outputs

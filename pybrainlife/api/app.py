@@ -241,7 +241,6 @@ def app_query(
     if res.status_code != 200:
         raise Exception(res.json()["message"])
 
-    # return res.json()["apps"]  # solve in pair programming session
 
     return App.normalize(res.json()["apps"])
 
