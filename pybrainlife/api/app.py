@@ -370,4 +370,4 @@ def get_app_by_id(id) -> App:
     if not apps or len(apps) == 0:
         raise Exception(f"App {id} not found")
     app = apps[0]
-    return App.normalize(app)
+    return app
