@@ -7,6 +7,7 @@ from .api import auth_header, services
 import requests
 import json
 
+
 def dl_dataset_fetch(id: str) -> Optional["DLDataset"]:
     dataset = dl_datasets_query(id=id)
     if len(dataset) == 0:
@@ -82,57 +83,51 @@ def dl_datasets_query(
     if task:
         query["task"] = task
 
-    url = services['warehouse'] + '/datalad/datasets'
+    url = services["warehouse"] + "/datalad/datasets"
 
-    res = requests.get(url, params={"find": json.dumps(query), "skip": skip, "limit": limit},
-                       headers={**auth_header()})
-    
+    res = requests.get(
+        url,
+        params={"find": json.dumps(query), "skip": skip, "limit": limit},
+        headers={**auth_header()},
+    )
+
     if res.status_code == 404:
         raise []
-    
+
     if res.status_code != 200:
         raise Exception(res.json()["message"])
-    
-    return DLDataset.normalize(res.json())    
+
+    return DLDataset.normalize(res.json())
 
 
-def dl_import_dataset(
-    id: str,
-    project: str,
-    datatypes: List[str]
-):
-    url = services['warehouse'] + '/datalad/import/' + id
+def dl_import_dataset(id: str, project: str, datatypes: List[str]):
+    url = services["warehouse"] + "/datalad/import/" + id
 
-    res = requests.post(url, json={"project": project, "datatypes": datatypes}, headers={**auth_header()})
+    res = requests.post(
+        url,
+        json={"project": project, "datatypes": datatypes},
+        headers={**auth_header()},
+    )
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
 
     return res.json()
 
-def dl_dataset_query_item(id: str) -> "DLItem":
-    url = services['warehouse'] + '/datalad/items/'
-    find = json.dumps({"dldataset": id})
-    select = 'dataset.meta.subject dataset.meta.session dataset.desc dataset.datatype dataset.datatype_tags dataset.tags',
-    res = requests.get(url, params={"find": find,
-                                    "select": select,
-                                    "limit": 1,
-                                    
-    }, headers={**auth_header()})
 
-# [
-#     {
-#         "_id": "6515f5bf257c5492c2828c56",
-#         "dataset": {
-#             "datatype": "594c0325fa1d2e5a1f0beda5",
-#             "datatype_tags": [],
-#             "meta": {
-#                 "subject": "M2001",
-#                 "session": "a1236"
-#             },
-#             "desc": "sub-M2001_ses-a1236_T2w.nii",
-#             "tags": []
-#         }
+def dl_dataset_query_item(id: str) -> "DLItem":
+    url = services["warehouse"] + "/datalad/items/"
+    find = json.dumps({"dldataset": id})
+    select = "dataset.meta.subject dataset.meta.session dataset.desc dataset.datatype dataset.datatype_tags dataset.tags"
+    res = requests.get(
+        url,
+        params={
+            "find": find,
+            "select": select,
+            "limit": 1,
+        },
+        headers={**auth_header()},
+    )
 
     if res.status_code != 200:
         raise Exception(res.json()["message"])
@@ -151,18 +146,19 @@ class DatasetDescription:
     DatasetDOI: str
 
     @staticmethod
-    def normalize(data: Dict[str, Any]) -> 'DatasetDescription':
+    def normalize(data: Dict[str, Any]) -> "DatasetDescription":
         description = DatasetDescription()
-        description.Name = data["Name"] if "Name" in data else ""
-        description.BIDSVersion = data["BIDSVersion"] if "BIDSVersion" in data else ""
-        description.License = data["License"] if "License" in data else ""
-        description.Authors = data["Authors"] if "Authors" in data else []
-        description.Acknowledgements = data["Acknowledgements"] if "Acknowledgements" in data else []
-        description.HowToAcknowledge = data["HowToAcknowledge"] if "HowToAcknowledge" in data else ""
-        description.Funding = data["Funding"] if "Funding" in data else []
-        description.ReferencesAndLinks = data["ReferencesAndLinks"] if "ReferencesAndLinks" in data else []
-        description.DatasetDOI = data["DatasetDOI"] if "DatasetDOI" in data else ""
+        description.Name = data.get("Name", "")
+        description.BIDSVersion = data.get("BIDSVersion", "")
+        description.License = data.get("License", "")
+        description.Authors = data.get("Authors", [])
+        description.Acknowledgements = data.get("Acknowledgements", [])
+        description.HowToAcknowledge = data.get("HowToAcknowledge", "")
+        description.Funding = data.get("Funding", [])
+        description.ReferencesAndLinks = data.get("ReferencesAndLinks", [])
+        description.DatasetDOI = data.get("DatasetDOI", "")
         return description
+
 
 class Stats:
     subjects: int
@@ -170,12 +166,13 @@ class Stats:
     datatypes: Dict[str, Any]
 
     @staticmethod
-    def normalize(data: Dict[str, Any]) -> 'Stats':
+    def normalize(data: Dict[str, Any]) -> "Stats":
         stats = Stats()
         stats.subjects = data["subjects"]
         stats.sessions = data["sessions"]
         stats.datatypes = data["datatypes"]
         return stats
+
 
 @hydrate(dl_dataset_fetch)
 @nested_dataclass
@@ -197,10 +194,13 @@ class DLDataset:
             return [DLDataset.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["version"] = data["__v"]
-        data["dataset_description"] = DatasetDescription.normalize(data["dataset_description"])
+        data["dataset_description"] = DatasetDescription.normalize(
+            data["dataset_description"]
+        )
         data["stats"] = Stats.normalize(data["stats"])
         data["create_date"] = data["create_date"]
         return DLDataset(**data)
+
 
 @dataclass
 class DatasetMeta:
@@ -226,17 +226,17 @@ class DLItem:
     def normalize(data: Dict[str, Any]) -> "DLItem":
         if isinstance(data, list):
             return [DLItem.normalize(d) for d in data]
-        
-        dataset = data['dataset']
-        meta = dataset['meta']
-        
+
+        dataset = data["dataset"]
+        meta = dataset["meta"]
+
         return DLItem(
-            id=data['_id'],
+            id=data["_id"],
             dataset=Dataset(
-                datatype=dataset['datatype'],
-                datatype_tags=dataset.get('datatype_tags', []),
-                meta=DatasetMeta(subject=meta['subject'], session=meta['session']),
-                desc=dataset['desc'],
-                tags=dataset.get('tags', [])
-            )
+                datatype=dataset["datatype"],
+                datatype_tags=dataset.get("datatype_tags", []),
+                meta=DatasetMeta(subject=meta["subject"], session=meta["session"]),
+                desc=dataset["desc"],
+                tags=dataset.get("tags", []),
+            ),
         )
