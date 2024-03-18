@@ -6,7 +6,7 @@ from .utils import nested_dataclass, is_id, hydrate, api_error
 from .api import auth_header, services
 
 
-def project_query(id=None, name=None, search=None, skip=0, limit=100):
+def project_query(id=None, name=None, search=None, skip=0, limit=100, auth=None):
     query = {}
     if search:
         if is_id(search):
@@ -28,7 +28,7 @@ def project_query(id=None, name=None, search=None, skip=0, limit=100):
             "skip": skip,
             "limit": limit,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -36,8 +36,8 @@ def project_query(id=None, name=None, search=None, skip=0, limit=100):
     return Project.normalize(res.json()["projects"])
 
 
-def project_fetch(project_id):
-    projects = project_query(id=project_id)
+def project_fetch(project_id, auth=None):
+    projects = project_query(id=project_id, auth=auth)
     if not projects:
         raise Exception(f"Project {project_id} not found")
     return projects[0]
@@ -76,7 +76,7 @@ class Project:
         return Project(**data)
 
 
-def project_create(name, description=None, group=None):
+def project_create(name, description=None, group=None, auth=None):
     data = {
         "name": name,
         "desc": description,
@@ -88,7 +88,7 @@ def project_create(name, description=None, group=None):
     res = requests.post(
         url,
         json=data,
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -96,10 +96,10 @@ def project_create(name, description=None, group=None):
     return Project.normalize(res.json())
 
 
-def project_delete(id):
+def project_delete(id, auth=None):
     url = services["warehouse"] + "/project/" + id
     res = requests.delete(
         url,
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
     api_error(res)

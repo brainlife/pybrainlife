@@ -42,7 +42,9 @@ def set_auth(token: Optional[str]):
     auth = token
 
 
-def auth_header() -> Dict[str, str]:
+def auth_header(ephemeral_auth=None) -> Dict[str, str]:
+    if ephemeral_auth:
+        return {"Authorization": "Bearer " + ephemeral_auth}
     return {"Authorization": "Bearer " + auth} if auth else {}
 
 
