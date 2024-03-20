@@ -16,13 +16,13 @@ def get_host() -> str:
 def set_host(new_host: str):
     global host, services
     host = new_host
-    services = {
+    services.update({
         "auth": f"https://{new_host}/api/auth",
         "amaretti": f"https://{new_host}/api/amaretti",
         "warehouse": f"https://{new_host}/api/warehouse",
         "events": f"wss://{new_host}/api/event",
         "main": f"https://{new_host}",
-    }
+    })
 
 
 set_host("brainlife.io")
