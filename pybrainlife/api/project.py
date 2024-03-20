@@ -3,7 +3,7 @@ import requests
 from typing import List, Dict, Union, overload
 
 from .utils import nested_dataclass, is_id, hydrate, api_error
-from .api import auth_header, services
+from .api import auth_header, get_service
 
 
 def project_query(id=None, name=None, search=None, skip=0, limit=100, auth=None):
@@ -19,7 +19,7 @@ def project_query(id=None, name=None, search=None, skip=0, limit=100, auth=None)
         if name:
             query["name"] = {"$regex": name, "$options": "ig"}
 
-    url = services["warehouse"] + "/project"
+    url = get_service("warehouse") + "/project"
     res = requests.get(
         url,
         params={
@@ -84,7 +84,7 @@ def project_create(name, description=None, group=None, auth=None):
     if group is not None:
         data["group_id"] = group
 
-    url = services["warehouse"] + "/project"
+    url = get_service("warehouse") + "/project"
     res = requests.post(
         url,
         json=data,
@@ -97,7 +97,7 @@ def project_create(name, description=None, group=None, auth=None):
 
 
 def project_delete(id, auth=None):
-    url = services["warehouse"] + "/project/" + id
+    url = get_service("warehouse") + "/project/" + id
     res = requests.delete(
         url,
         headers={**auth_header(auth)},

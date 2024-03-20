@@ -28,6 +28,11 @@ def set_host(new_host: str):
 set_host("brainlife.io")
 
 
+def get_service(service: str) -> str:
+    global services
+    return services[service]
+
+
 def set_service(service: str, uri: str):
     global services
     services[service] = uri
