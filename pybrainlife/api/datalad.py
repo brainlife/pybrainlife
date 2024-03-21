@@ -110,7 +110,10 @@ def dl_dataset_import(dl_dataset: 'DLDataset', project: Project, datatypes: List
 
     res = requests.post(
         url,
-        json={"project": project, "datatypes": datatypes},
+        json={
+            "project": project,
+            "datatypes": [d.id for d in datatypes],
+        },
         headers={**auth_header(auth)},
     )
 

@@ -43,6 +43,34 @@ def project_fetch(project_id, auth=None):
     return projects[0]
 
 
+@nested_dataclass
+class ProjectStatsDatasets:
+    participants: int = 0
+    objects: int = 0
+    size: float = 0
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["ProjectStatsDatasets", List["ProjectStatsDatasets"]]:
+        if isinstance(data, list):
+            return [ProjectStatsDatasets.normalize(d) for d in data]
+        data["participants"] = data.get("subject_count", 0)
+        data["objects"] = data.get("count", 0)
+        data["size"] = data.get("size", 0)
+        return ProjectStatsDatasets(**data)
+
+
+@nested_dataclass
+class ProjectStats:
+    datasets: ProjectStatsDatasets
+
+    @staticmethod
+    def normalize(data: Union[Dict, List[Dict]]) -> Union["ProjectStats", List["ProjectStats"]]:
+        if isinstance(data, list):
+            return [ProjectStats.normalize(d) for d in data]
+        data["datasets"] = ProjectStatsDatasets.normalize(data["datasets"])
+        return ProjectStats(**data)
+
+
 @hydrate(project_fetch)
 @nested_dataclass
 class Project:
@@ -50,6 +78,8 @@ class Project:
     name: str
     description: str
     group: int
+
+    stats: ProjectStats
 
     admins: List[str]
     members: List[str]
@@ -73,6 +103,7 @@ class Project:
         data["group"] = data["group_id"]
         data["description"] = data["desc"]
         data["has_public_resource"] = not data.get("noPublicResource", False)
+        data["stats"] = ProjectStats.normalize(data["stats"])
         return Project(**data)
 
 
