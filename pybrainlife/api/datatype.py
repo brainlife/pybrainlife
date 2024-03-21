@@ -7,7 +7,7 @@ from .utils import is_id, nested_dataclass, hydrate, api_error
 
 
 def datatype_query(
-    id=None, ids=None, name=None, search=None, skip=0, limit=100
+    id=None, ids=None, name=None, search=None, skip=0, limit=100, auth=None
 ) -> List["DataType"]:
     query = {}
 
@@ -33,7 +33,7 @@ def datatype_query(
             "skip": skip,
             "limit": limit,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -41,8 +41,8 @@ def datatype_query(
     return DataType.normalize(res.json()["datatypes"])
 
 
-def datatype_fetch(id) -> Optional["DataType"]:
-    datatypes = datatype_query(id=id, limit=1)
+def datatype_fetch(id, auth=None) -> Optional["DataType"]:
+    datatypes = datatype_query(id=id, limit=1, auth=auth)
     if len(datatypes) == 0:
         return None
     return datatypes[0]
