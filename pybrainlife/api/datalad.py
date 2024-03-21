@@ -7,6 +7,9 @@ from .api import auth_header, services
 import requests
 import json
 
+from .datatype import DataType
+from .project import Project
+
 
 def dl_dataset_fetch(id: str) -> Optional["DLDataset"]:
     dataset = dl_datasets_query(id=id)
@@ -15,6 +18,7 @@ def dl_dataset_fetch(id: str) -> Optional["DLDataset"]:
     return dataset[0]
 
 
+# TODO fix typing
 def dl_datasets_query(
     id: Optional[str] = None,
     path: Optional[str] = None,
@@ -100,13 +104,13 @@ def dl_datasets_query(
     return DLDataset.normalize(res.json())
 
 
-def dl_import_dataset(id: str, project: str, datatypes: List[str]):
-    url = services["warehouse"] + "/datalad/import/" + id
+def dl_dataset_import(dl_dataset: 'DLDataset', project: Project, datatypes: List[DataType], auth=None):
+    url = services["warehouse"] + "/datalad/import/" + dl_dataset.id
 
     res = requests.post(
         url,
         json={"project": project, "datatypes": datatypes},
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     if res.status_code != 200:
@@ -135,28 +139,28 @@ def dl_dataset_query_item(id: str) -> "DLItem":
 
 
 class DatasetDescription:
-    Name: str
-    BIDSVersion: str
-    License: str
-    Authors: List[str]
-    Acknowledgements: List[str]
-    HowToAcknowledge: str
-    Funding: List[str]
-    ReferencesAndLinks: List[str]
-    DatasetDOI: str
+    name: str
+    bids_version: str
+    license: str
+    authors: List[str]
+    acknowledgements: List[str]
+    how_to_acknowledge: Optional[str] = None
+    funding: List[str]
+    references_and_links: List[str]
+    dataset_doi: str
 
     @staticmethod
     def normalize(data: Dict[str, Any]) -> "DatasetDescription":
         description = DatasetDescription()
-        description.Name = data.get("Name", "")
-        description.BIDSVersion = data.get("BIDSVersion", "")
-        description.License = data.get("License", "")
-        description.Authors = data.get("Authors", [])
-        description.Acknowledgements = data.get("Acknowledgements", [])
-        description.HowToAcknowledge = data.get("HowToAcknowledge", "")
-        description.Funding = data.get("Funding", [])
-        description.ReferencesAndLinks = data.get("ReferencesAndLinks", [])
-        description.DatasetDOI = data.get("DatasetDOI", "")
+        description.name = data.get("Name", "")
+        description.bids_version = data.get("BIDSVersion", "")
+        description.license = data.get("License", "")
+        description.authors = data.get("Authors", [])
+        description.acknowledgements = data.get("Acknowledgements", [])
+        description.how_to_acknowledge = data.get("HowToAcknowledge")
+        description.funding = data.get("Funding", [])
+        description.references_and_links = data.get("ReferencesAndLinks", [])
+        description.dataset_doi = data.get("DatasetDOI", "")
         return description
 
 
@@ -174,6 +178,7 @@ class Stats:
         return stats
 
 
+# TODO which fields are optional here?
 @hydrate(dl_dataset_fetch)
 @nested_dataclass
 class DLDataset:
@@ -208,6 +213,7 @@ class DatasetMeta:
     session: str
 
 
+# TODO could this be mapped to Dataset? is this a reduced version of Dataset?
 @dataclass
 class Dataset:
     datatype: str
