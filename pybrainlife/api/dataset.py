@@ -25,6 +25,7 @@ def dataset_query(
     task=None,
     skip=0,
     limit=100,
+    auth=None,
 ) -> List["Dataset"]:
     query = {}
 
@@ -88,7 +89,7 @@ def dataset_query(
             "skip": skip,
             "limit": limit,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -96,11 +97,27 @@ def dataset_query(
     return Dataset.normalize(res.json()["datasets"])
 
 
-def dataset_fetch(id) -> Optional["Dataset"]:
-    datasets = dataset_query(id=id, limit=1)
+def dataset_fetch(id, auth=None) -> Optional["Dataset"]:
+    datasets = dataset_query(id=id, limit=1, auth=auth)
     if len(datasets) == 0:
         return None
     return datasets[0]
+
+
+def dataset_import(dataset, project, datatypes, auth=None):
+    url = services["warehouse"] + f"/datalad/import/${dataset.id}"
+    res = requests.post(
+        url,
+        json={
+            "project": project.id,
+            "datatypes": [d.id for d in datatypes],
+        },
+        headers={**auth_header(auth)},
+    )
+
+    api_error(res)
+
+    return res.json()
 
 
 @hydrate(dataset_fetch)
