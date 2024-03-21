@@ -32,7 +32,7 @@ def nested_dataclass(*args, **kwargs):
                         field_type(**v) if isinstance(v, dict) else v for v in value
                     ]
                     valid_kwargs[name] = new_obj
-                elif is_dataclass(field_type):
+                elif is_dataclass(field_type) and not isinstance(value, field_type):
                     new_obj = field_type(value)
                     valid_kwargs[name] = new_obj
                 else:

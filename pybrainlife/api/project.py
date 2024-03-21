@@ -2,6 +2,8 @@ import json
 import requests
 from typing import List, Dict, Union, overload
 
+from dataclasses import dataclass
+
 from .utils import nested_dataclass, is_id, hydrate, api_error
 from .api import auth_header, get_service
 
@@ -43,7 +45,7 @@ def project_fetch(project_id, auth=None):
     return projects[0]
 
 
-@nested_dataclass
+@dataclass
 class ProjectStatsDatasets:
     participants: int = 0
     objects: int = 0
@@ -53,13 +55,15 @@ class ProjectStatsDatasets:
     def normalize(data: Union[Dict, List[Dict]]) -> Union["ProjectStatsDatasets", List["ProjectStatsDatasets"]]:
         if isinstance(data, list):
             return [ProjectStatsDatasets.normalize(d) for d in data]
-        data["participants"] = data.get("subject_count", 0)
-        data["objects"] = data.get("count", 0)
-        data["size"] = data.get("size", 0)
+        data = {
+            "participants": data.get("subject_count", 0),
+            "objects": data.get("count", 0),
+            "size": data.get("size", 0),
+        }
         return ProjectStatsDatasets(**data)
 
 
-@nested_dataclass
+@dataclass
 class ProjectStats:
     datasets: ProjectStatsDatasets
 
@@ -67,7 +71,9 @@ class ProjectStats:
     def normalize(data: Union[Dict, List[Dict]]) -> Union["ProjectStats", List["ProjectStats"]]:
         if isinstance(data, list):
             return [ProjectStats.normalize(d) for d in data]
-        data["datasets"] = ProjectStatsDatasets.normalize(data["datasets"])
+        data = {
+            "datasets": ProjectStatsDatasets.normalize(data["datasets"]),
+        }
         return ProjectStats(**data)
 
 
