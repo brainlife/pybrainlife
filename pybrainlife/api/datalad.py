@@ -36,6 +36,7 @@ def dl_datasets_query(
     task: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    auth=None,
 ) -> List["DLDataset"]:
     query = {}
 
@@ -92,7 +93,7 @@ def dl_datasets_query(
     res = requests.get(
         url,
         params={"find": json.dumps(query), "skip": skip, "limit": limit},
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     if res.status_code == 404:
