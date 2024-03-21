@@ -1,15 +1,29 @@
 [tool.poetry]
 name = "pybrainlife"
 version = "1.1.0"
-description = "This project is a collection of functions that are useful for analyzing MRI data derivatives generated on brainlife.io"
-authors = ["Brad Caron <bacaron245@gmail.com>"]
+description = "This project is a collection of functions that are useful for analyzing neuroimaging data derivatives generated on brainlife.io"
+authors = ["Brad Caron <bacaron245@gmail.com>", "Franco Pestilli <pestilli@utexas.edu>", "Anibal Solon <anibalsolon@gmail.com>"]
 readme = "README.md"
 homepage = "https://github.com/brainlife/pybrainlife"
 repository = "https://github.com/brainlife/pybrainlife"
-keywords = ["brainlife"]
+keywords = ["brainlife", "neuroimaging", "data analysis"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+requests = "^2.28.1"
+pyjwt = "^2.8.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+pytest-dependency = "^0.6.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.1.1"
+
+[tool.poetry.group.science]
+optional = true
+
+[tool.poetry.group.science.dependencies]
 numpy = "^1.9.3"
 bctpy = "^0.6.0"
 seaborn = "^0.12.2"
@@ -17,13 +31,13 @@ jgf = "^0.2.2"
 scikit-learn = "^1.0.2"
 pandas = "^1.4.3"
 scipy = "^1.8.0"
-requests = "^2.28.1"
+pybids = "^0.16.3"
 matplotlib = "^3.5.3"
 igraph = "^0.11.2"
-
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+bl = 'pybrainlife.cli.__main__:main'
