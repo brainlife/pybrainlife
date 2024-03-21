@@ -11,8 +11,8 @@ from .datatype import DataType
 from .project import Project
 
 
-def dl_dataset_fetch(id: str) -> Optional["DLDataset"]:
-    dataset = dl_datasets_query(id=id)
+def dl_dataset_fetch(id: str, auth=None) -> Optional["DLDataset"]:
+    dataset = dl_datasets_query(id=id, auth=auth)
     if len(dataset) == 0:
         return None
     return dataset[0]
