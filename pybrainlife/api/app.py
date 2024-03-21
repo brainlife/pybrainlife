@@ -212,7 +212,8 @@ def _prepare_inputs_and_subdirs(app, inputs, task):
 
 
 def app_query(
-    id=None, name=None, inputs=None, outputs=None, doi=None, skip=0, limit=100
+    id=None, name=None, inputs=None, outputs=None, doi=None, skip=0, limit=100,
+    auth=None
 ) -> List["App"]:
     query = {}
     if id:
@@ -223,7 +224,7 @@ def app_query(
     and_queries = []
 
     if inputs:
-        input_datatypes = [datatype_query(name=datatype) for datatype in inputs]
+        input_datatypes = [datatype_query(name=datatype, auth=auth) for datatype in inputs]
         input_datatypes = [
             datatype[0].id if len(datatype) > 0 else None
             for datatype in input_datatypes
@@ -245,7 +246,7 @@ def app_query(
         ]
 
     if outputs:
-        output_datatypes = [datatype_query(name=datatype) for datatype in outputs]
+        output_datatypes = [datatype_query(name=datatype, auth=auth) for datatype in outputs]
         output_datatypes = [
             datatype[0].id if len(datatype) > 0 else None
             for datatype in output_datatypes
@@ -281,7 +282,7 @@ def app_query(
             "skip": skip,
             "limit": limit,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -289,8 +290,8 @@ def app_query(
     return App.normalize(res.json()["apps"])
 
 
-def app_fetch(id) -> "App":
-    apps = app_query(id=id)
+def app_fetch(id, auth=None) -> "App":
+    apps = app_query(id=id, auth=auth)
     if not apps or len(apps) == 0:
         raise Exception(f"App {id} not found")
     app = apps[0]
@@ -416,13 +417,14 @@ class App:
 
 
 def app_run(
-    app_id, project_id, inputs, config, resource_id=None, tags=None, instance_id=None
+    app_id, project_id, inputs, config, resource_id=None, tags=None, instance_id=None,
+    auth=None
 ):
     project = project_fetch(project_id)
     if not project:
         raise Exception(f"Project {project_id} not found")
 
-    app: App = app_fetch(id=app_id)
+    app: App = app_fetch(id=app_id, auth=auth)
     if not app:
         raise Exception(f"App {app_id} not found")
 
@@ -434,13 +436,13 @@ def app_run(
         group_ids.append(PUBLIC_RESOURCES_GID)
 
     datatypes = datatype_query(
-        ids=[input.datatype.id for input in app.inputs], limit=len(app.inputs)
+        ids=[input.datatype.id for input in app.inputs], limit=len(app.inputs), auth=auth
     )
     datatypes = {d.id: d for d in datatypes}
     app_inputs = {input.field: input for input in app.inputs}
 
     referenced_datasets = [id for id in inputs.values()]
-    datasets = dataset_query(ids=referenced_datasets, limit=len(referenced_datasets))
+    datasets = dataset_query(ids=referenced_datasets, limit=len(referenced_datasets), auth=auth)
     datasets = {d.id: d for d in datasets}
 
     resolved_inputs = {}
@@ -519,7 +521,7 @@ def app_run(
     }
 
     if resource_id:
-        resource = resource_query(id=resource_id)
+        resource = resource_query(id=resource_id, auth=auth)
         if not resource:
             raise Exception(f"Resource {resource_id} not found")
         submission_params["preferred_resource_id"] = resource

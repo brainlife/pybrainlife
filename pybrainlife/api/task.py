@@ -58,7 +58,7 @@ class Task:
 
 
 def instance_query(
-    id=None, name=None, group=None, search=None, skip=0, limit=100
+    id=None, name=None, group=None, search=None, skip=0, limit=100, auth=None
 ) -> List[Instance]:
     query = {}
     if search:
@@ -83,7 +83,7 @@ def instance_query(
             "skip": skip,
             "limit": limit,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -91,7 +91,7 @@ def instance_query(
     return Instance.normalize(res.json()["instances"])
 
 
-def instance_create(name, description=None, project=None) -> Instance:
+def instance_create(name, description=None, project=None, auth=None) -> Instance:
     data = {
         "name": name,
         "desc": description,
@@ -103,7 +103,7 @@ def instance_create(name, description=None, project=None) -> Instance:
     res = requests.post(
         f'{services["amaretti"]}/instance',
         json=data,
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -112,7 +112,7 @@ def instance_create(name, description=None, project=None) -> Instance:
     return Instance.normalize(instance)
 
 
-def task_run(instance, name, service, config) -> Task:
+def task_run(instance, name, service, config, auth=None) -> Task:
     url = services["amaretti"] + "/task"
     res = requests.post(
         url,
@@ -122,7 +122,7 @@ def task_run(instance, name, service, config) -> Task:
             "service": service,
             "config": config,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -131,7 +131,7 @@ def task_run(instance, name, service, config) -> Task:
     return Task.normalize(task)
 
 
-def task_run_app(config):
+def task_run_app(config, auth=None):
     """
     Submits a task based on the provided configuration.
 
@@ -150,7 +150,7 @@ def task_run_app(config):
     res = requests.post(
         url,
         json=config,
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -159,7 +159,7 @@ def task_run_app(config):
     return Task.normalize(task)
 
 
-def task_wait_dataset(id):
+def task_wait_dataset(id, auth=None):
     while True:
         url = services["warehouse"] + "/dataset"
         res = requests.get(
@@ -167,7 +167,7 @@ def task_wait_dataset(id):
             params={
                 "find": json.dumps({"prov.task_id": id}),
             },
-            headers={**auth_header()},
+            headers={**auth_header(auth)},
         )
         datasets = res.json()["datasets"]
         if len(datasets) == 0:
@@ -199,14 +199,14 @@ class TaskProductArchiveFailed(Exception):
         self.task = task
 
 
-def task_wait(id, wait=3):
+def task_wait(id, wait=3, auth=None):
     while True:
         res = requests.get(
             services["amaretti"] + "/task",
             params={
                 "find": json.dumps({"_id": id}),
             },
-            headers={**auth_header()},
+            headers={**auth_header(auth)},
         )
         tasks = Task.normalize(res.json()["tasks"])
         if len(tasks) == 1:
@@ -245,25 +245,25 @@ def task_wait(id, wait=3):
         time.sleep(wait)
 
 
-def task_product_query(id):
+def task_product_query(id, auth=None):
     res = requests.get(
         services["amaretti"] + "/task/product",
         params={
             "ids": [id],
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
     return res.json()
 
 
-def stage_datasets(instance_id, dataset_ids):
+def stage_datasets(instance_id, dataset_ids, auth=None):
     res = requests.post(
         services["warehouse"] + "/dataset/stage",
         json={
             "instance_id": instance_id,
             "dataset_ids": dataset_ids,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -271,9 +271,9 @@ def stage_datasets(instance_id, dataset_ids):
     return Task.normalize(res.json()["task"])
 
 
-def find_or_create_instance(app, project, instance_id=None) -> Instance:
+def find_or_create_instance(app, project, instance_id=None, auth=None) -> Instance:
     if instance_id:
-        instances = instance_query(id=instance_id)
+        instances = instance_query(id=instance_id, auth=auth)
         if not instances:
             raise Exception(f"Instance {instance_id} not found")
         if instances[0].config.get("removing") == True:
@@ -284,5 +284,5 @@ def find_or_create_instance(app, project, instance_id=None) -> Instance:
     else:
         base_tag = ", ".join(app.tags) if app.tags else "CLI Process"
         new_instance_name = base_tag + "." + str(uuid.uuid4())
-        instance = instance_create(new_instance_name, "(CLI)" + app.name, project)
+        instance = instance_create(new_instance_name, "(CLI)" + app.name, project, auth=auth)
         return instance

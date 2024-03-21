@@ -7,7 +7,7 @@ from .utils import nested_dataclass, hydrate, api_error
 from .api import auth_header, services
 
 
-def resource_query(id=None, name=None, skip=0, limit=100):
+def resource_query(id=None, name=None, skip=0, limit=100, auth=None):
     query = {}
     if id:
         query["_id"] = id
@@ -23,7 +23,7 @@ def resource_query(id=None, name=None, skip=0, limit=100):
             "skip": skip,
             "limit": limit,
         },
-        headers={**auth_header()},
+        headers={**auth_header(auth)},
     )
 
     api_error(res)
@@ -31,8 +31,8 @@ def resource_query(id=None, name=None, skip=0, limit=100):
     return Resource.normalize(res.json()["resources"])
 
 
-def resource_fetch(id) -> Optional["Resource"]:
-    resources = resource_query(id=id, limit=1)
+def resource_fetch(id, auth=None) -> Optional["Resource"]:
+    resources = resource_query(id=id, limit=1, auth=auth)
     if len(resources) == 0:
         return None
     return resources[0]
@@ -84,6 +84,7 @@ def resource_create(
     resource_services: Optional[List[Dict[str, Any]]] = None,
     gids: Optional[List[int]] = None,
     active: Optional[bool] = True,
+    auth=None,
 ) -> Resource:
     """
     Create a new resource in Brainlife.
@@ -113,7 +114,7 @@ def resource_create(
         data["gids"] = gids
 
     url = services["amaretti"] + "/resource"
-    res = requests.post(url, json=data, headers={**auth_header()})
+    res = requests.post(url, json=data, headers={**auth_header(auth)})
 
     api_error(res)
 
@@ -130,6 +131,7 @@ def resource_update(
     gids: Optional[List[int]] = None,
     name: Optional[str] = None,
     active: Optional[bool] = True,
+    auth=None,
 ):
     data = {"config": config, "active": active}
     if envs:
@@ -146,23 +148,23 @@ def resource_update(
         data["gids"] = gids
 
     url = services["amaretti"] + "/resource/" + id
-    res = requests.put(url, json=data, headers={**auth_header()})
+    res = requests.put(url, json=data, headers={**auth_header(auth)})
 
     api_error(res)
 
     return res.json()
 
 
-def resource_delete(id):
+def resource_delete(id, auth=None):
     url = services["amaretti"] + "/resource/" + id
-    res = requests.delete(url, headers={**auth_header()})
+    res = requests.delete(url, headers={**auth_header(auth)})
 
     api_error(res)
 
     return res.json()
 
 
-def find_best_resource(service: str, group_ids: List[int]) -> Optional[Resource]:
+def find_best_resource(service: str, group_ids: List[int], auth=None) -> Optional[Resource]:
     """
     Finds the best resource to run a specified service.
 
@@ -171,7 +173,7 @@ def find_best_resource(service: str, group_ids: List[int]) -> Optional[Resource]
     :return: A dictionary containing details of the best resource.
     """
     url = services["amaretti"] + "/resource/best"
-    headers = {**auth_header()}
+    headers = {**auth_header(auth)}
     params = {"service": service, "gids": group_ids}
     res = requests.get(url, headers=headers, params=params)
 
@@ -184,7 +186,7 @@ def find_best_resource(service: str, group_ids: List[int]) -> Optional[Resource]
     return Resource.normalize(resource_data["resource"])
 
 
-def test_resource_connectivity(resource_id: str) -> str:
+def test_resource_connectivity(resource_id: str, auth=None) -> str:
     """
     Tests the connectivity and availability of a specific resource.
 
@@ -192,7 +194,7 @@ def test_resource_connectivity(resource_id: str) -> str:
     :return: The status of the resource after testing.
     """
     url = services["amaretti"] + f"/resource/test/{resource_id}"
-    headers = {**auth_header()}
+    headers = {**auth_header(auth)}
     res = requests.put(url, headers=headers)
 
     api_error(res)
