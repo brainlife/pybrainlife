@@ -1,16 +1,17 @@
-import os
-import io
+import logging
 import json
-import time
-import tarfile
+import logging
 import argparse
-import requests
+from tqdm.std import tqdm
 
 from .utils import ensure_auth
 from ..api.datatype import datatype_query
 from ..api.project import project_query
 from ..api.api import auth_header, services
 from ..api.compound.data import upload_dataset
+
+
+logger = logging.getLogger("pybrainlife.cli")
 
 
 def args(subparser):
@@ -55,7 +56,7 @@ def run(args, unknown):
 def run_upload(args, unknown):
     datatypes = datatype_query(search=args.datatype)
     if not datatypes:
-        print(f"No datatypes found for {args.datatype}")
+        logger.error(f"No datatypes found for {args.datatype}")
         return 1
 
     datatype = datatypes[0]
@@ -87,10 +88,16 @@ def run_upload(args, unknown):
 
     project = project_query(args.project)
     if not project:
-        print(f"No project found for {args.project}")
+        logger.error(f"No project found for {args.project}")
         return 1
     else:
         project = project[0]
+
+    streaming_pipe = lambda stream_fp: (
+      stream_fp
+      if logger.level > logging.INFO else
+      tqdm.wrapattr(stream_fp, "read", total=len(stream_fp.getbuffer()))
+    )
 
     datasets = upload_dataset(
         project=project,
@@ -100,9 +107,12 @@ def run_upload(args, unknown):
         tags=tags,
         datatype_tags=datatype_tags,
         metadata=metadata,
+        streaming_pipe=streaming_pipe,
     )
 
-    for dataset in datasets:
-        print(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
+    if datasets:
+      logger.info("Datasets created:")
+      for dataset in datasets:
+          logger.info(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
 
     return 0

@@ -1,8 +1,10 @@
 import os
 import io
 import tarfile
-from typing import List
+import logging
 import requests
+from typing import List, Callable, Union
+from contextlib import AbstractContextManager
 
 from ...api.project import Project
 from ...api.datatype import DataType, DataTypeTag
@@ -18,6 +20,9 @@ from ...api.api import auth_header, services
 from ...api.utils import api_error
 
 
+logger = logging.getLogger("pybrainlife.cli")
+
+
 def build_tar(datatype, files):
     stream_fp = io.BytesIO()
     tar = tarfile.TarFile.open(None, "w|gz", stream_fp)
@@ -27,6 +32,9 @@ def build_tar(datatype, files):
             continue
 
         filepath = files[file.field]
+
+        if not filepath and not file.required:
+            continue
 
         if file.type == "d" and not os.path.isdir(filepath):
             raise Exception(f"{file.field} is not a directory: {filepath}")
@@ -61,6 +69,7 @@ def upload_dataset(
     tags: List[DataTypeTag],
     datatype_tags: List[DataTypeTag],
     metadata: dict,
+    streaming_pipe: Callable[[io.BytesIO], Union[io.BytesIO, AbstractContextManager]] = lambda stream: stream,
 ):
     instance_name = f"upload.{project.group}"
     instances = instance_query(name=instance_name)
@@ -74,20 +83,21 @@ def upload_dataset(
 
     stream_fp = build_tar(datatype, files)
 
-    res = requests.post(
-        services["amaretti"] + f"/task/upload/{task.id}",
-        params={
-            "p": "upload/upload.tar.gz",
-            "untar": True,
-        },
-        data=stream_fp,
-        headers={**auth_header()},
-    )
+    with streaming_pipe(stream_fp) as stream:
+        res = requests.post(
+            f"{services['amaretti']}/task/upload/{task.id}",
+            params={
+                "p": "upload/upload.tar.gz",
+                "untar": True,
+            },
+            data=stream,
+            headers={**auth_header()},
+        )
 
     api_error(res)
 
     res = requests.post(
-        services["warehouse"] + "/dataset/finalize-upload",
+        f"{services['warehouse']}/dataset/finalize-upload",
         json={
             "task": task.id,
             "datatype": datatype.id,

@@ -15,7 +15,7 @@ def datatype_query(
         if is_id(search):
             query["_id"] = search
         else:
-            query["name"] = search
+            query["name"] = {"$regex": search}
     else:
         if id:
             query["_id"] = id

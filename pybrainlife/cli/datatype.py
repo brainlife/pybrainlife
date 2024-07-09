@@ -1,7 +1,11 @@
 import json
+import logging
 
 from ..api.datatype import datatype_query
 from .utils import ensure_auth
+
+
+logger = logging.getLogger("pybrainlife.cli")
 
 
 def args(subparser):
@@ -23,29 +27,29 @@ def run(args):
     ensure_auth()
 
     if args.subcommand == "query":
-        datatypes = datatype_query(args.id, args.query, args.skip, args.limit)
+        datatypes = datatype_query(
+            id=args.id, search=args.query,
+            skip=args.skip, limit=args.limit
+        )
         if not datatypes:
-            print("No datatypes found")
+            logger.error("No datatypes found")
             return 1
 
         if args.json:
             print(json.dumps(datatypes))
 
         else:
+            print("Datatypes:")
+            print("")
             for dt in datatypes:
-                print(f"Id: {dt['_id']}")
-                print(f"Name: {dt['name']}")
-                print(f"Description: {dt['desc']}")
+                print(f"Id: {dt.id}")
+                print(f"Name: {dt.name}")
+                print(f"Description: {dt.description}")
                 print(f"Files:")
-                for file in dt["files"]:
+                for file in dt.files:
                     print(
-                        f"  {(file['required'] and '(required) ' or '')}",
-                        end="",
+                        f"- {file.field}{(file.required and ' (required)' or '')}: {file.name}",
                     )
-                    name = file.get("filename") or file.get("dirname")
-                    print(
-                        f"{file['id']}: {name}",
-                    )
-                print()
+                print("")
 
         return 0
