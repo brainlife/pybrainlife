@@ -1,6 +1,8 @@
-import json
 from typing import Dict, Optional
 import requests
+
+from .utils import api_error
+
 
 host = None
 services = {}
@@ -14,16 +16,21 @@ def get_host() -> str:
 def set_host(new_host: str):
     global host, services
     host = new_host
-    services = {
+    services.update({
         "auth": f"https://{new_host}/api/auth",
         "amaretti": f"https://{new_host}/api/amaretti",
         "warehouse": f"https://{new_host}/api/warehouse",
         "events": f"wss://{new_host}/api/event",
         "main": f"https://{new_host}",
-    }
+    })
 
 
 set_host("brainlife.io")
+
+
+def get_service(service: str) -> str:
+    global services
+    return services[service]
 
 
 def set_service(service: str, uri: str):
@@ -40,7 +47,9 @@ def set_auth(token: Optional[str]):
     auth = token
 
 
-def auth_header() -> Dict[str, str]:
+def auth_header(ephemeral_auth=None) -> Dict[str, str]:
+    if ephemeral_auth:
+        return {"Authorization": "Bearer " + ephemeral_auth}
     return {"Authorization": "Bearer " + auth} if auth else {}
 
 
@@ -72,8 +81,7 @@ def login(username, password, ldap=False, ttl=7) -> str:
             "ttl": 1000 * 60 * 60 * 24 * ttl,
         },
     )
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
+    api_error(res)
 
     jwt = res.json()["jwt"]
     return jwt

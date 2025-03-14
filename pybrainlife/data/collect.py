@@ -197,8 +197,12 @@ def check_tags_dtags(tags,obj,tagOrDatatypeTag):
 
 ## this function is the wrapper function that calls all the prevouis functions to generate a dataframe for the entire project of the appropriate datatype
 # def collect_data(datatype,datatype_tags,tags,filename,outPath,net_adj): # net_adj no longer necessary
-def collect_data(datatype,datatype_tags,tags,filename,outPath,duplicates=False):
-    
+def collect_data(datatype,datatype_tags,tags,filename,outPath,duplicates=False,overwrite=False):
+
+    # if already computed, just load it
+    if outPath and os.path.exists(outPath) and not overwrite:
+        return pd.read_csv(outPath)
+
     if datatype in ['cortex_example','tractmeasures_example']:
         data = pd.read_csv('./sample-data/'+datatype.replace('_example','')+'.csv')
         obj_tags = ['example_data']

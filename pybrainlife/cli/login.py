@@ -1,7 +1,11 @@
+import logging
 from getpass import getpass
 
 from ..api.api import login
 from .utils import save_auth
+
+
+logger = logging.getLogger("pybrainlife.cli")
 
 
 def args(subparser):
@@ -13,12 +17,10 @@ def args(subparser):
 
 
 def run(args):
-    print("Running login", args)
-
-    if args.username is None:
+    if not args.quiet and args.username is None:
         args.username = input("Username: ")
 
-    if args.password is None:
+    if not args.quiet and args.password is None:
         args.password = getpass("Password: ")
 
     try:
@@ -31,8 +33,8 @@ def run(args):
 
         save_auth(token)
 
-        print("Login successful")
+        logger.info("Login successful")
         return 0
     except:
-        print("Login failed")
+        logger.info("Login failed")
         return 1

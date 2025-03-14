@@ -1,8 +1,10 @@
 import os
 import stat
+import jwt
 
 from pathlib import Path
 from ..api.api import get_host, get_auth, set_auth
+
 
 home = Path.home() or ""
 token_path = home / ".config" / get_host() / ".jwt"
@@ -44,5 +46,15 @@ def save_auth(token):
 
 
 def ensure_auth():
-    if get_auth() is None:
+    token = get_auth()
+    if token is None:
         raise Exception("Not authenticated")
+
+    jwt.decode(token, options={"verify_signature": False, "verify_exp": True})
+
+
+def logged_in_user_details():
+    token = get_auth()
+    if token is None:
+        raise Exception("Not authenticated")
+    return jwt.decode(token, options={"verify_signature": False, "verify_exp": True})

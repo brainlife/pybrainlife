@@ -1,18 +1,19 @@
 import os
 import io
 import json
-import time
+import logging
 import tarfile
-import argparse
 import requests
 
-from bids.layout import BIDSLayout, Query
+from bids.layout import BIDSLayout
 
 from .utils import ensure_auth
-from ..api.datatype import datatype_query
 from ..api.project import project_query
-from ..api.task import instance_query, task_run, task_wait_dataset, task_wait
+from ..api.task import instance_query, instance_create, task_run, task_wait_dataset, task_wait
 from ..api.api import auth_header, services
+
+
+logger = logging.getLogger("pybrainlife.cli")
 
 
 def args(subparser):
@@ -23,7 +24,9 @@ def args(subparser):
 
     subparser = subparsers.add_parser("upload", help="Upload data")
     subparser.add_argument("-p", "--project", help="Project ID", required=True)
-    subparser.add_argument("-d", "--directory", default='.', help="Root BIDS directory", required=True)
+    subparser.add_argument(
+        "-d", "--directory", default=".", help="Root BIDS directory", required=True
+    )
     subparser.add_argument("-t", "--tag", action="append", help="Dataset tags")
     subparser.add_argument("-j", "--json", help="Output as JSON", action="store_true")
 
@@ -36,7 +39,6 @@ def run(args, unknown):
 
 
 def run_upload(args, unknown):
-    
     layout = BIDSLayout(args.directory)
 
     tags = args.tag or []
@@ -55,7 +57,7 @@ def run_upload(args, unknown):
 
     project = project_query(args.project)
     if not project:
-        print(f"No project found for {args.project}")
+        logger.error(f"No project found for {args.project}")
         return 1
     else:
         project = project[0]
@@ -71,31 +73,30 @@ def run_upload(args, unknown):
     task_wait(task.id)
 
     stream_fp = io.BytesIO()
-    tar = tarfile.TarFile.open(None, 'w|gz', stream_fp)
+    tar = tarfile.TarFile.open(None, "w|gz", stream_fp)
 
     for file in datatype.files:
-
         if not file.field in files_args:
             continue
 
         filepath = getattr(files_args, file.field)
 
-        if file.type == 'd' and not os.path.isdir(filepath):
-            print(f"{file.field} is not a directory")
+        if file.type == "d" and not os.path.isdir(filepath):
+            logger.error(f"{file.field} is not a directory")
             return 1
 
-        if file.type == 'f' and not os.path.isfile(filepath):
-            print(f"{file.field} is not a file")
+        if file.type == "f" and not os.path.isfile(filepath):
+            logger.error(f"{file.field} is not a file")
             return 1
 
-        if file.type == 'd':
-            filepath = filepath.rstrip('/')
+        if file.type == "d":
+            filepath = filepath.rstrip("/")
             for dir, _, files in os.walk(filepath):
                 tardir = dir.replace(filepath, file.name)
 
                 for f in files:
-                    subfilepath = f'{dir}/{f}'
-                    tarsubfilepath = f'{tardir}/{f}'
+                    subfilepath = f"{dir}/{f}"
+                    tarsubfilepath = f"{tardir}/{f}"
                     tar.add(subfilepath, arcname=tarsubfilepath)
         else:
             tarfilepath = file.name
@@ -105,7 +106,7 @@ def run_upload(args, unknown):
     stream_fp.seek(0)
 
     res = requests.post(
-        services["amaretti"] + f"/task/upload/{task.id}",
+        f"{services['amaretti']}/task/upload/{task.id}",
         params={
             "p": "upload/upload.tar.gz",
             "untar": True,
@@ -114,11 +115,8 @@ def run_upload(args, unknown):
         headers={**auth_header()},
     )
 
-    if res.status_code != 200:
-        raise Exception(res.json()["message"])
-
     res = requests.post(
-        services["warehouse"] + "/dataset/finalize-upload",
+        f"{services['warehouse']}/dataset/finalize-upload",
         json={
             "task": task.id,
             "datatype": datatype.id,
@@ -138,7 +136,9 @@ def run_upload(args, unknown):
     else:
         datasets = task_wait_dataset(task.id)
 
-    for dataset in datasets:
-        print(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
+    if datasets:
+      logger.info("Datasets created:")
+      for dataset in datasets:
+          logger.info(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
 
     return 0
