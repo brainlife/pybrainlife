@@ -1,3 +1,4 @@
+import traceback
 import logging
 from getpass import getpass
 
@@ -10,7 +11,7 @@ logger = logging.getLogger("pybrainlife.cli")
 
 def args(subparser):
     parser = subparser.add_parser("login", help="Perform login")
-    parser.add_argument("--ldap", help="Login using LDAP", action="store_true")
+    parser.add_argument("--jwt", help="Print JWT access token", action="store_true")
     parser.add_argument("--username", help="Username")
     parser.add_argument("--password", help="Password")
     parser.add_argument("--ttl", help="Days for the login session to expire", type=int, default=7)
@@ -27,14 +28,19 @@ def run(args):
         token = login(
             args.username,
             args.password,
-            ldap=args.ldap,
             ttl=args.ttl,
         )
 
         save_auth(token)
 
-        logger.info("Login successful")
+        if args.jwt:
+            print(token)
+        else:
+            logger.info("Login successful")
         return 0
     except:
-        logger.info("Login failed")
+        if args.verbose:
+            traceback.print_exc()
+        if not args.jwt:
+            logger.info("Login failed")
         return 1
