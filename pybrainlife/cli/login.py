@@ -9,7 +9,7 @@ def args(subparser):
     parser.add_argument("--ldap", help="Login using LDAP", action="store_true")
     parser.add_argument("--username", help="Username")
     parser.add_argument("--password", help="Password")
-    parser.add_argument("--ttl", help="Days for the login session to expire", default=7)
+    parser.add_argument("--ttl", help="Days for the login session to expire", type=int, default=7)
 
 
 def run(args):
