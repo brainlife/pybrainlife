@@ -46,20 +46,65 @@ def nested_dataclass(*args, **kwargs):
     return wrapper(args[0]) if args else wrapper
 
 
-def hydrate(fn):
+def hydrate(fn, nfn=None):
+    cache = {}
+    _pending = []  # list of (id, instance) tuples awaiting resolution
+
     def wrapper(cls):
+
+        def _flush():
+            if not _pending:
+                return
+            to_fetch = list({_id for _id, _ in _pending if _id not in cache})
+            if to_fetch:
+                if nfn is not None:
+                    results = nfn(to_fetch)
+                else:
+                    results = {_id: fn(_id) for _id in to_fetch}
+                for _id, result in results.items():
+                    cache[_id] = result
+
+            for _id, obj in _pending:
+                object.__setattr__(obj, '_hydrate_resolved', True)
+                if isinstance(cache[_id], dict):
+                    raise ValueError()
+                    _original_init[0](obj, **cache[_id])
+                # elif isinstance(cache[_id], cls):
+                _original_init[0](obj, **cache[_id].__dict__)
+
+            _pending.clear()
+
+        _original_init = [None]
+
         original_init = cls.__init__
+        _original_init[0] = original_init
 
         def __init__(self, *args, **kwargs):
             if len(args) == 1 and is_id(args[0]) and not kwargs:
-                kwargs = fn(args[0])
+                _id = args[0]
+                if _id in cache:
+                    kwargs = cache[_id]
+                elif nfn is not None:
+                    object.__setattr__(self, '_hydrate_resolved', False)
+                    _pending.append((_id, self))
+                    return
+                else:
+                    kwargs = fn(_id)
             if len(args) == 1 and isinstance(args[0], cls):
                 kwargs = args[0].__dict__
             if isinstance(kwargs, cls):
                 kwargs = kwargs.__dict__
+            object.__setattr__(self, '_hydrate_resolved', True)
             original_init(self, **kwargs)
 
+        def __getattr__(self, name):
+            if not object.__getattribute__(self, '_hydrate_resolved'):
+                _flush()
+                return object.__getattribute__(self, name)
+            raise AttributeError(name)
+
         cls.__init__ = __init__
+        cls.__getattr__ = __getattr__
         return cls
 
     return wrapper
