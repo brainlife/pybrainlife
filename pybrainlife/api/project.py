@@ -8,18 +8,22 @@ from .utils import nested_dataclass, is_id, hydrate, api_error
 from .api import auth_header, get_service
 
 
-def project_query(id=None, name=None, search=None, skip=0, limit=100, auth=None):
+def project_query(id=None, ids=None, name=None, search=None, skip=0, limit=100, auth=None):
     query = {}
     if search:
         if is_id(search):
             query["_id"] = search
         else:
-            query["name"] = search
+            query["name"] = {"$regex": search, "$options": "ig"}
     else:
         if id:
             query["_id"] = id
+        if ids:
+            query["_id"] = {"$in": ids}
         if name:
             query["name"] = {"$regex": name, "$options": "ig"}
+
+    query["removed"] = False
 
     url = get_service("warehouse") + "/project"
     res = requests.get(
@@ -43,6 +47,15 @@ def project_fetch(project_id, auth=None):
     if not projects:
         raise Exception(f"Project {project_id} not found")
     return projects[0]
+
+
+def project_nfetch(ids, auth=None):
+    projects = project_query(ids=ids, auth=auth)
+    if not projects:
+        raise Exception(f"Projects {ids} not found")
+    return {
+        project.id: project for project in projects
+    }
 
 
 @dataclass
@@ -77,7 +90,7 @@ class ProjectStats:
         return ProjectStats(**data)
 
 
-@hydrate(project_fetch)
+@hydrate(project_fetch, project_nfetch)
 @nested_dataclass
 class Project:
     id: str

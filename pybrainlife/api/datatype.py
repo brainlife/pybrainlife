@@ -48,6 +48,15 @@ def datatype_fetch(id, auth=None) -> Optional["DataType"]:
     return datatypes[0]
 
 
+def datatype_nfetch(ids, auth=None):
+    datatypes = datatype_query(ids=ids, auth=auth)
+    if not datatypes:
+        raise Exception(f"DataTypes {ids} not found")
+    return {
+        datatype.id: datatype for datatype in datatypes
+    }
+
+
 @nested_dataclass
 class DataTypeFile:
     id: str
@@ -74,7 +83,7 @@ class DataTypeFile:
         return data
 
 
-@hydrate(datatype_fetch)
+@hydrate(datatype_fetch, datatype_nfetch)
 @nested_dataclass
 class DataType:
     id: str
