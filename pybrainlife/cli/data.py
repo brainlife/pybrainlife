@@ -1,3 +1,5 @@
+import os
+import requests
 import logging
 import json
 import logging
@@ -61,7 +63,7 @@ def run_upload(args, unknown):
 
     datatype = datatypes[0]
 
-    # TODO better help message
+    # Dynamically add CLI arguments for files/directories required by the datatype
     parser = argparse.ArgumentParser(add_help=False)
     for file in datatype.files:
         filetype = {"f": "file", "d": "directory"}[file.type]
@@ -110,6 +112,61 @@ def run_upload(args, unknown):
         streaming_pipe=streaming_pipe,
     )
 
+    # Upload files to cloud storage via presigned URLs where each file is uploaded individually
+    file_paths = []
+    for file in datatype.files:
+        if file.type == "d":
+            dir_path = files_args.get(file.field)
+            if dir_path:
+                for root, dirs, files in os.walk(dir_path):
+                    for name in files:
+                        full_path = os.path.join(root, name)
+                        relative_path = os.path.relpath(full_path, start=dir_path)
+                        file_paths.append(relative_path)
+        elif file.type == "f":
+            file_path = files_args.get(file.field)
+            if file_path:
+                file_paths.append(file_path)
+
+    if datasets:
+        logger.info("Uploading dataset to cloud storage")
+        for dataset in datasets:
+            dataset_id = dataset["_id"]
+            try:
+                presigned_response = requests.post(
+                    f"{services['amaretti']}/task/cloud/upload/{dataset_id}",
+                    headers={**auth_header()},
+                )
+                try:
+                    presigned_post = presigned_response.json()
+                except ValueError as e:
+                    logger.error("Failed to parse JSON from the response.")
+                    raise e
+                upload_url = presigned_post["url"]
+                default_fields = presigned_post.get("fields", {})
+
+                # Upload files using presigned URL
+                for path in file_paths:
+                    fields = default_fields.copy()
+                    fields["key"] = f"scratch/datasets/{dataset_id}/{path}"
+
+                    # Check if file exists
+                    if not os.path.exists(path):
+                        logger.error(f"File does not exist: {path}")
+                        continue
+                    elif not os.path.isfile(path):
+                        logger.error(f"Path is not a file: {path}")
+                        continue
+
+                    with open(path, 'rb') as f:
+                        files = {"file": f}
+                        upload_response = requests.post(upload_url, data=fields, files=files)
+                        if upload_response.status_code == 204:
+                            logger.info(f"Upload successful.")
+                        upload_response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error uploading files: {e}")
+                return 1
     if datasets:
       logger.info("Datasets created:")
       for dataset in datasets:
