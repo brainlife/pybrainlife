@@ -1,0 +1,102 @@
+{
+  "slurm_cluster_config": {
+    "hostname": "login.cluster.edu",
+    "username": "your_username",
+    "ssh_key": "/path/to/your/ssh/key",
+    "work_dir": "/scratch/brainlife",
+    "default_partition": "compute",
+    "default_account": "your_account",
+    "default_qos": "normal"
+  },
+  "resource_config": {
+    "name": "Slurm Cluster Resource",
+    "config": {
+      "slurm": {
+        "partition": "compute",
+        "nodes": 1,
+        "cpus": 4,
+        "memory": "8G",
+        "time_limit": "02:00:00",
+        "account": "your_account",
+        "qos": "normal",
+        "constraint": "skylake",
+        "features": "gpu",
+        "gres": "gpu:1",
+        "mail_type": "END,FAIL",
+        "mail_user": "your_email@domain.com",
+        "work_dir": "/scratch/brainlife",
+        "output_dir": "/scratch/brainlife/outputs",
+        "error_dir": "/scratch/brainlife/errors",
+        "environment": {
+          "MODULEPATH": "/opt/modules",
+          "SINGULARITY_CACHEDIR": "/scratch/singularity_cache",
+          "TMPDIR": "/scratch/tmp"
+        }
+      }
+    },
+    "envs": {
+      "SLURM_CLUSTER": "main_cluster",
+      "SLURM_PARTITION": "compute",
+      "SLURM_ACCOUNT": "your_account"
+    }
+  },
+  "job_templates": {
+    "basic_job": {
+      "script_template": "#!/bin/bash\n#SBATCH --job-name=brainlife_job\n#SBATCH --partition={partition}\n#SBATCH --nodes={nodes}\n#SBATCH --cpus-per-task={cpus}\n#SBATCH --mem={memory}\n#SBATCH --time={time_limit}\n#SBATCH --account={account}\n\n# Load modules\nmodule load singularity\nmodule load python/3.8\n\n# Set up environment\nexport BRAINLIFE_TASK_ID=${SLURM_JOB_ID}\nexport BRAINLIFE_WORK_DIR=${SLURM_SUBMIT_DIR}\n\n# Create working directory\nmkdir -p ${BRAINLIFE_WORK_DIR}/data\nmkdir -p ${BRAINLIFE_WORK_DIR}/output\n\n# Download input data\necho 'Downloading input data...'\n# Add data download logic here\n\n# Run the application\necho 'Running application...'\n# Add app execution logic here\n\n# Upload results\necho 'Uploading results...'\n# Add result upload logic here\n\necho 'Task completed successfully'"
+    },
+    "gpu_job": {
+      "script_template": "#!/bin/bash\n#SBATCH --job-name=brainlife_gpu_job\n#SBATCH --partition={partition}\n#SBATCH --nodes={nodes}\n#SBATCH --cpus-per-task={cpus}\n#SBATCH --mem={memory}\n#SBATCH --time={time_limit}\n#SBATCH --account={account}\n#SBATCH --gres=gpu:1\n\n# Load modules\nmodule load singularity\nmodule load python/3.8\nmodule load cuda/11.0\n\n# Set up environment\nexport BRAINLIFE_TASK_ID=${SLURM_JOB_ID}\nexport BRAINLIFE_WORK_DIR=${SLURM_SUBMIT_DIR}\nexport CUDA_VISIBLE_DEVICES=${SLURM_LOCALID}\n\n# Create working directory\nmkdir -p ${BRAINLIFE_WORK_DIR}/data\nmkdir -p ${BRAINLIFE_WORK_DIR}/output\n\n# Download input data\necho 'Downloading input data...'\n# Add data download logic here\n\n# Run the application with GPU support\necho 'Running GPU application...'\n# Add GPU app execution logic here\n\n# Upload results\necho 'Uploading results...'\n# Add result upload logic here\n\necho 'GPU task completed successfully'"
+    },
+    "array_job": {
+      "script_template": "#!/bin/bash\n#SBATCH --job-name=brainlife_array_job\n#SBATCH --partition={partition}\n#SBATCH --nodes=1\n#SBATCH --cpus-per-task={cpus}\n#SBATCH --mem={memory}\n#SBATCH --time={time_limit}\n#SBATCH --account={account}\n#SBATCH --array=1-{array_size}\n\n# Load modules\nmodule load singularity\nmodule load python/3.8\n\n# Set up environment\nexport BRAINLIFE_TASK_ID=${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}\nexport BRAINLIFE_WORK_DIR=${SLURM_SUBMIT_DIR}/task_${SLURM_ARRAY_TASK_ID}\n\n# Create working directory\nmkdir -p ${BRAINLIFE_WORK_DIR}/data\nmkdir -p ${BRAINLIFE_WORK_DIR}/output\n\n# Download input data for this array task\necho 'Downloading input data for task ${SLURM_ARRAY_TASK_ID}...'\n# Add array-specific data download logic here\n\n# Run the application\necho 'Running application for task ${SLURM_ARRAY_TASK_ID}...'\n# Add array-specific app execution logic here\n\n# Upload results\necho 'Uploading results for task ${SLURM_ARRAY_TASK_ID}...'\n# Add array-specific result upload logic here\n\necho 'Array task ${SLURM_ARRAY_TASK_ID} completed successfully'"
+    }
+  },
+  "examples": {
+    "basic_usage": {
+      "description": "Basic Slurm job submission",
+      "commands": [
+        "bl resource slurm status --host login.cluster.edu --user myuser",
+        "bl resource slurm queue --host login.cluster.edu --user myuser",
+        "bl resource slurm submit job.sh --name my_job --partition compute --cpus 4 --memory 8G --time 01:00:00"
+      ]
+    },
+    "brainlife_integration": {
+      "description": "Using Slurm with Brainlife task execution",
+      "commands": [
+        "bl resource pull --slurm --slurm-host login.cluster.edu --slurm-user myuser --project my_project",
+        "bl resource pull --slurm --slurm-host login.cluster.edu --slurm-user myuser --resource slurm_resource_id"
+      ]
+    },
+    "advanced_configuration": {
+      "description": "Advanced Slurm configuration examples",
+      "configurations": {
+        "high_memory_job": {
+          "partition": "highmem",
+          "nodes": 1,
+          "cpus": 16,
+          "memory": "64G",
+          "time_limit": "04:00:00",
+          "account": "highmem_account"
+        },
+        "gpu_job": {
+          "partition": "gpu",
+          "nodes": 1,
+          "cpus": 8,
+          "memory": "32G",
+          "time_limit": "02:00:00",
+          "gres": "gpu:1",
+          "constraint": "gpu_v100"
+        },
+        "multi_node_job": {
+          "partition": "compute",
+          "nodes": 4,
+          "cpus": 8,
+          "memory": "16G",
+          "time_limit": "08:00:00",
+          "account": "compute_account"
+        }
+      }
+    }
+  }
+}
+

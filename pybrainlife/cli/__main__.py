@@ -9,6 +9,8 @@ from .utils import init_auth
 from .login import args as login_args, run as login
 from .datatype import args as datatype_args, run as datatype_run
 from .data import args as data_args, run as data_run
+from .task import args as task_args, run as task_run
+from .resource import args as resource_args, run as resource_run
 
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -27,6 +29,8 @@ def main():
     login_args(subparsers)
     datatype_args(subparsers)
     data_args(subparsers)
+    task_args(subparsers)
+    resource_args(subparsers)
 
     args, unknown = main_parser.parse_known_args()
 
@@ -59,3 +63,9 @@ def main():
 
     if args.command == "data":
         sys.exit(data_run(args, unknown))
+    
+    if args.command == "task":
+        sys.exit(task_run(args))
+    
+    if args.command == "resource":
+        sys.exit(resource_run(args))
