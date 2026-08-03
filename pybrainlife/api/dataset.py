@@ -153,7 +153,7 @@ class Dataset:
         if isinstance(data, list):
             return [Dataset.normalize(d) for d in data]
         data["id"] = data["_id"]
-        data["description"] = data["desc"]
+        data["description"] = data.get("desc", "")
         data["metadata"] = data["meta"]
         data["datatype"] = data["datatype"]
         data["datatype_tags"] = DataTypeTag.normalize(data["datatype_tags"])

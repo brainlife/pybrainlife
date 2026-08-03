@@ -120,7 +120,7 @@ class Project:
             return [Project.normalize(d) for d in data]
         data["id"] = data["_id"]
         data["group"] = data["group_id"]
-        data["description"] = data["desc"]
+        data["description"] = data.get("desc", "")
         data["has_public_resource"] = not data.get("noPublicResource", False)
         data["stats"] = ProjectStats.normalize(data["stats"])
         return Project(**data)

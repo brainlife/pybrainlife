@@ -105,7 +105,7 @@ class DataType:
         if isinstance(data, list):
             return [DataType.normalize(d) for d in data]
         data["id"] = data["_id"]
-        data["description"] = data["desc"]
+        data["description"] = data.get("desc", "")
         data["files"] = [DataTypeFile.normalize(file) for file in data["files"]]
         data["validator"] = data.get("validator")
         return DataType(**data)

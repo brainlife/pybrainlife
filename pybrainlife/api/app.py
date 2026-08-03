@@ -347,10 +347,18 @@ class AppInputField(AppField):
         if isinstance(data, list):
             return [AppInputField.normalize(d) for d in data]
 
+        # Read these before AppField.normalize() runs: AppField's own
+        # dataclass has no optional/multi/advanced fields, so nested_dataclass's
+        # __init__ silently drops them from the object it builds -- pulling
+        # them back out of that object's __dict__ afterward always finds the
+        # default, never the real value.
+        optional = data.get("optional", False)
+        multi = data.get("multi", False)
+        advanced = data.get("advanced", False)
         info = AppField.normalize(data).__dict__
-        info["optional"] = info.get("optional", False)
-        info["multi"] = info.get("multi", False)
-        info["advanced"] = info.get("advanced", False)
+        info["optional"] = optional
+        info["multi"] = multi
+        info["advanced"] = advanced
         return AppInputField(**info)
 
 
@@ -374,9 +382,14 @@ class AppOutputField(AppField):
         if isinstance(data, list):
             return [AppOutputField.normalize(d) for d in data]
 
+        # Same ordering issue as AppInputField.normalize above: read these
+        # from the raw dict before AppField.normalize() builds an object that
+        # never carried them in the first place.
+        archive = data.get("archive", False)
+        output_on_root = data.get("output_on_root", False)
         info = AppField.normalize(data).__dict__
-        info["archive"] = info.get("archive", False)
-        info["output_on_root"] = info.get("output_on_root", False)
+        info["archive"] = archive
+        info["output_on_root"] = output_on_root
         return AppOutputField(**info)
 
 
@@ -407,7 +420,7 @@ class App:
         if isinstance(data, list):
             return [App.normalize(d) for d in data]
         data["id"] = data["_id"]
-        data["description"] = data["desc"]
+        data["description"] = data.get("desc", "")
         data["inputs"] = AppInputField.normalize(data["inputs"])
         data["outputs"] = AppOutputField.normalize(data["outputs"])
         data["config"] = data["config"]
