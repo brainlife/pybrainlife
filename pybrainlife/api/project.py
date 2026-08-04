@@ -5,7 +5,7 @@ from typing import List, Dict, Union, overload
 from dataclasses import dataclass
 
 from .utils import nested_dataclass, is_id, hydrate, api_error
-from .api import auth_header, get_service
+from .api import auth_header, get_service, refresh
 
 
 def project_query(id=None, ids=None, name=None, search=None, skip=0, limit=100, auth=None):
@@ -143,7 +143,15 @@ def project_create(name, description=None, group=None, auth=None):
 
     api_error(res)
 
-    return Project.normalize(res.json())
+    project = Project.normalize(res.json())
+
+    # Project creation adds the caller to a new group; that membership only
+    # shows up in a freshly issued JWT. Refresh now so this project's group is
+    # usable immediately in a following call (e.g. creating a task instance
+    # to upload into it) -- see api.refresh()'s docstring for why.
+    refresh(auth=auth)
+
+    return project
 
 
 def project_delete(id, auth=None):

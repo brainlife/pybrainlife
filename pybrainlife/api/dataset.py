@@ -131,13 +131,18 @@ class Dataset:
     tags: List[DataTypeTag]
 
     description: str
-    storage: str
     size: Optional[int]
 
     status: str
     created_at: datetime
     removed: bool
 
+    # Optional (not just Optional[str] as a type -- needs an actual default):
+    # only set once a dataset has finished archiving. A dataset queried while
+    # still `status == "storing"` genuinely has no storage backend assigned
+    # yet, and normalize() used to require this key outright, crashing on any
+    # dataset caught mid-archive instead of just reporting its status.
+    storage: Optional[str] = None
     metadata: Dict = field(default_factory=dict)
 
     @overload
@@ -160,4 +165,5 @@ class Dataset:
         data["tags"] = DataTypeTag.normalize(data["tags"])
         data["created_at"] = data["create_date"]
         data["size"] = data.get("size", None)
+        data["storage"] = data.get("storage", None)
         return Dataset(**data)

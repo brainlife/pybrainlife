@@ -23,6 +23,18 @@ PUBLIC_RESOURCES_GID = 1
 
 
 def _prepare_config(values, download_task, inputs, datatypes, app):
+    """Build an input-type config key's value (a relative path string like
+    "../<stage-task-id>/<dataset-id>/t1.nii.gz" that the app's own script
+    reads directly). Several .id-vs-.field mixups here used to make every
+    input-type key silently disappear from the submitted config with no
+    error: DataTypeFile.normalize() renames the same way AppField.normalize()
+    does (semantic name -> .field, internal db id -> .id), so file lookups
+    keyed by `.id` never matched a config spec's `file_id` (a semantic name
+    like "t1"). download_task/u_input/user_inputs[0] are Task/Dataset
+    dataclass instances, not dicts, so `['_id']` subscripting also never
+    worked -- and DataTypeFile has no .filename/.dirname attribute at all
+    (only .name, which normalize() already resolved to whichever one applies).
+    """
     id_to_app_input_table = {input.field: input for input in app.inputs}
     result = {}
 
@@ -36,18 +48,18 @@ def _prepare_config(values, download_task, inputs, datatypes, app):
             if getattr(app_input, "multi", False):
                 result[key] = result.get(key, [])
                 for u_input in user_inputs:
-                    dtype = datatypes[u_input.datatype]
-                    id_to_file = {file.id: file for file in dtype.files}
+                    dtype = datatypes[u_input.datatype.id]
+                    id_to_file = {file.field: file for file in dtype.files}
                     input_dtype_file = id_to_file.get(config["file_id"])
                     if input_dtype_file:
-                        filepath = f"../{download_task['_id']}/{u_input['_id']}/{input_dtype_file.filename or input_dtype_file.dirname}"
+                        filepath = f"../{download_task.id}/{u_input.id}/{input_dtype_file.name}"
                         result[key].append(filepath)
             else:
                 dtype = datatypes[user_inputs[0].datatype.id]
-                id_to_file = {file.id: file for file in dtype.files}
+                id_to_file = {file.field: file for file in dtype.files}
                 input_dtype_file = id_to_file.get(config["file_id"])
                 if input_dtype_file:
-                    filepath = f"../{download_task['_id']}/{user_inputs[0]['_id']}/{input_dtype_file.filename or input_dtype_file.dirname}"
+                    filepath = f"../{download_task.id}/{user_inputs[0].id}/{input_dtype_file.name}"
                     result[key] = filepath
         else:
             result[key] = values.get(key, config.get("default", None))
@@ -58,19 +70,29 @@ def _prepare_config(values, download_task, inputs, datatypes, app):
 def _prepare_outputs(app, opt_tags, inputs, project_id, meta):
     app_outputs = []
     for output in app.outputs:
+        # output.field is the app's own semantic slot name (e.g. "acpc") --
+        # what the app's script actually writes its output to. output.id is
+        # this AppOutputField's own internal database id (renamed from the
+        # raw API's "id" by AppField.normalize()), not something the running
+        # container knows about. Using output.id here (as ported literally
+        # from the Node CLI's bl-app-run.js, where "id" means the semantic
+        # name because that JS code works on the raw unrenamed API response)
+        # sends the archiver a subdir/output id the app never produces, so
+        # every submission fails within under a second, before any real work
+        # starts.
         output_req = {
-            "id": output.id,
+            "id": output.field,
             "datatype": output.datatype.id,
             "desc": getattr(output, "desc", app.name),
             "tags": opt_tags,
             "meta": meta,
-            "archive": {"project": project_id, "desc": f"{output.id} from {app.name}"},
+            "archive": {"project": project_id, "desc": f"{output.field} from {app.name}"},
         }
 
         if hasattr(output, "output_on_root") and output.output_on_root:
             output_req["files"] = getattr(output, "files", [])
         else:
-            output_req["subdir"] = output.id
+            output_req["subdir"] = output.field
 
         tags = []
         if hasattr(output, "datatype_tags_pass"):
@@ -99,7 +121,12 @@ def _compile_metadata(app_inputs):
 
 
 def _validate_datatype_tags(field: str, dataset: Dataset, app_input: "AppInputField"):
-    user_input_tags = set(dataset.datatype_tags)
+    # DataTypeTag has no __hash__ (a plain, unfrozen dataclass), so a set of
+    # the objects themselves raises TypeError; the membership checks below
+    # compare against plain tag-name strings anyway (via str(tag), which
+    # DataTypeTag.__repr__ renders as "name" / "!name"), so build the set
+    # from .name too.
+    user_input_tags = {t.name for t in dataset.datatype_tags}
 
     for tag in app_input.datatype_tags:
         tag = str(tag).strip()
@@ -129,7 +156,7 @@ def _check_missing_inputs(app_inputs, resolved_inputs):
     """
 
     missing_inputs = [
-        input_field.id
+        input_field.field
         for input_field in app_inputs
         if not input_field.optional and input_field.field not in resolved_inputs
     ]
@@ -138,11 +165,15 @@ def _check_missing_inputs(app_inputs, resolved_inputs):
         raise ValueError(f"some required inputs are missing: {missing_input_ids}")
 
 
-def _prepare_app_config(app, user_options):
+def _prepare_app_config(app, user_config):
+    """`user_config` is a flat {config_key: value} dict of caller overrides
+    (see app_run()'s own `config` parameter and its usage in
+    tests/test_pybrainlife_app.py, e.g. `config={"reorient": True}`) -- not
+    nested under a "config" key."""
     values = {}
     for key in app.config:
         app_param = app.config[key]
-        user_param = user_options.get("config", {}).get(key)
+        user_param = user_config.get(key)
 
         if app_param["type"] != "input":
             if user_param is None:
@@ -172,6 +203,17 @@ def _collect_unique_dataset_ids(app, inputs):
 
 
 def _prepare_inputs_and_subdirs(app, inputs, task):
+    """`input` (an AppInputField) uses `.field` for the app's own semantic
+    slot name (e.g. "anat") and `.id` for this field's own internal database
+    id (see AppField.normalize()'s rename) -- `inputs` (== app_run()'s
+    resolved_inputs) is keyed by that same semantic `.field` name, and
+    `input.id` never matches one of those keys, so every branch below used to
+    be dead code (masked by `if input.id in inputs` always being False). Once
+    that's corrected, `input`/`task`/`user_input` also need attribute access
+    instead of dict-style subscripting: they're dataclass instances (AppInputField,
+    Task, Dataset respectively), not dicts, only `output` (drawn from
+    `task.config["_outputs"]`, plain JSON) actually is one.
+    """
     subdirs = []
     app_inputs = []
 
@@ -179,16 +221,16 @@ def _prepare_inputs_and_subdirs(app, inputs, task):
         keys = [
             key
             for key, value in app.config.items()
-            if value.get("input_id") == input.id
+            if value.get("input_id") == input.field
         ]
 
-        if input.id in inputs:
-            for user_input in inputs[input["id"]]:
+        if input.field in inputs:
+            for user_input in inputs[input.field]:
                 dataset = next(
                     (
                         output
-                        for output in task["config"]["_outputs"]
-                        if output["dataset_id"] == user_input["_id"]
+                        for output in task.config["_outputs"]
+                        if output["dataset_id"] == user_input.id
                     ),
                     None,
                 )
@@ -196,14 +238,14 @@ def _prepare_inputs_and_subdirs(app, inputs, task):
                     app_inputs.append(
                         {
                             **dataset,
-                            "id": input["id"],
-                            "task_id": task["_id"],
+                            "id": input.field,
+                            "task_id": task.id,
                             "keys": keys,
                         }
                     )
 
-                    if "includes" in input:
-                        for include in input["includes"].split("\n"):
+                    if input.includes:
+                        for include in input.includes.split("\n"):
                             subdirs.append(f"include:{dataset['id']}/{include}")
                     else:
                         subdirs.append(dataset["id"])
@@ -331,6 +373,7 @@ class AppInputField(AppField):
     optional: bool = False
     multi: bool = False
     advanced: bool = False
+    includes: str = ""
 
     @overload
     @staticmethod
@@ -355,10 +398,12 @@ class AppInputField(AppField):
         optional = data.get("optional", False)
         multi = data.get("multi", False)
         advanced = data.get("advanced", False)
+        includes = data.get("includes", "")
         info = AppField.normalize(data).__dict__
         info["optional"] = optional
         info["multi"] = multi
         info["advanced"] = advanced
+        info["includes"] = includes
         return AppInputField(**info)
 
 
@@ -504,8 +549,13 @@ def app_run(
     meta = _compile_metadata(app_input_for_task)
     app_outputs = _prepare_outputs(app, tags, resolved_inputs, project_id, meta)
 
-    config = app.config
-    config_values = _prepare_app_config(app, config)
+    # NOTE: this used to be `config = app.config` here, which clobbered the
+    # caller's own `config` argument (the parameter this function was called
+    # with) with the app's config *schema* before ever using it -- every
+    # override the caller passed was silently discarded and only the app's
+    # own defaults were ever submitted. Use the caller's config (default to
+    # no overrides at all) instead.
+    config_values = _prepare_app_config(app, config or {})
     prepared_config = _prepare_config(
         config_values, task, resolved_inputs, datatypes=datatypes, app=app
     )
@@ -540,3 +590,4 @@ def app_run(
         submission_params["preferred_resource_id"] = resource
 
     task = task_run_app(submission_params)
+    return task

@@ -2,7 +2,7 @@
 
 These use hand-built dicts shaped like the raw warehouse/amaretti API
 responses -- no network access, no auth, unlike most of this package's
-existing tests. They cover two real bugs found while dogfooding pybrainlife
+existing tests. They cover three real bugs found while dogfooding pybrainlife
 against a live brainlife.io project:
 
 1. Several normalize() methods assumed "desc" is always present
@@ -14,10 +14,35 @@ against a live brainlife.io project:
    that already-built object's __dict__ -- they were never there to begin
    with, so every input's `optional` (and every output's `archive`) silently
    came back False regardless of the real app schema.
+3. app_run() overwrote its own `config` parameter (the caller's override
+   dict) with `app.config` (the app's config *schema*) before ever using it,
+   so _prepare_app_config() always received the schema instead of the
+   caller's overrides and every submission silently used only the app's
+   built-in defaults, no matter what `config=` was passed to app_run().
+4. _prepare_outputs()/_prepare_config() used `.id` (the field's own internal
+   database id, set by AppField.normalize()/DataTypeFile.normalize()'s rename
+   of the raw API's "id" -> "_id"/"id") where they meant `.field` (the app's
+   semantic slot name, e.g. "acpc", "t1") -- ported literally from the Node
+   CLI, whose *raw, unrenamed* JSON has no such distinction. This sent the
+   archiver a subdir/output id the running container never produces (every
+   app_run() submission failed within under a second, before any real work
+   started) and silently dropped every input-type config value (e.g. the
+   file path fsl-anat's own script reads its T1 from) with no error at all.
+5. _validate_datatype_tags() built `set(dataset.datatype_tags)` -- a set of
+   DataTypeTag objects, which have no __hash__ (a plain, unfrozen dataclass)
+   -- raising TypeError on any dataset that actually carries a datatype tag
+   (only missed by earlier testing because the first dataset tried had none).
 """
 
 from pybrainlife.api.project import Project
-from pybrainlife.api.app import AppInputField, AppOutputField
+from pybrainlife.api.app import (
+    AppInputField,
+    AppOutputField,
+    _prepare_app_config,
+    _prepare_config,
+    _validate_datatype_tags,
+)
+from pybrainlife.api.datatype import DataTypeTag
 
 
 def test_project_normalize_missing_desc_does_not_raise():
@@ -92,3 +117,165 @@ def test_app_output_field_normalize_preserves_archive_false():
     field = AppOutputField.normalize(data)
 
     assert field.archive is False
+
+
+class _FakeApp:
+    """Minimal stand-in for App -- _prepare_app_config only reads .config."""
+
+    def __init__(self, config):
+        self.config = config
+
+
+def test_prepare_app_config_respects_user_override():
+    app = _FakeApp(
+        config={
+            "crop": {"type": "boolean", "default": False},
+            "reorient": {"type": "boolean", "default": False},
+        }
+    )
+
+    values = _prepare_app_config(app, {"crop": True, "reorient": True})
+
+    assert values["crop"] is True
+    assert values["reorient"] is True
+
+
+def test_prepare_app_config_falls_back_to_schema_default_when_no_override():
+    app = _FakeApp(config={"crop": {"type": "boolean", "default": False}})
+
+    values = _prepare_app_config(app, {})
+
+    assert values["crop"] is False
+
+
+def test_prepare_app_config_skips_input_type_keys():
+    app = _FakeApp(
+        config={
+            "t1": {"type": "input", "input_id": "t1"},
+            "crop": {"type": "boolean", "default": True},
+        }
+    )
+
+    values = _prepare_app_config(app, {"t1": "should-be-ignored"})
+
+    assert "t1" not in values
+    assert values["crop"] is True
+
+
+class _FakeDataTypeFile:
+    def __init__(self, field, name):
+        self.field = field
+        self.name = name
+
+
+class _FakeDataType:
+    def __init__(self, id, files):
+        self.id = id
+        self.files = files
+
+
+class _FakeDataset:
+    def __init__(self, id, datatype):
+        self.id = id
+        self.datatype = datatype
+
+
+class _FakeTask:
+    def __init__(self, id):
+        self.id = id
+
+
+class _FakeAppInputField:
+    def __init__(self, field, multi=False):
+        self.field = field
+        self.multi = multi
+
+
+class _FakeAppWithInputs:
+    def __init__(self, config, inputs):
+        self.config = config
+        self.inputs = inputs
+
+
+def test_prepare_config_builds_input_filepath():
+    """DataTypeFile.normalize() renames the same way AppField.normalize()
+    does (semantic name -> .field, internal db id -> .id) -- a config spec's
+    file_id ("t1") is a semantic name, so looking it up in a dict keyed by
+    .id (as _prepare_config used to) never matches, and the whole input-type
+    config key silently vanishes with no error."""
+    dt_file = _FakeDataTypeFile(field="t1", name="t1.nii.gz")
+    datatype = _FakeDataType(id="dt1", files=[dt_file])
+    dataset = _FakeDataset(id="ds1", datatype=datatype)
+    task = _FakeTask(id="task1")
+    app = _FakeAppWithInputs(
+        config={"input": {"type": "input", "input_id": "t1", "file_id": "t1"}},
+        inputs=[_FakeAppInputField(field="t1")],
+    )
+
+    result = _prepare_config({}, task, {"t1": [dataset]}, datatypes={"dt1": datatype}, app=app)
+
+    assert result["input"] == "../task1/ds1/t1.nii.gz"
+
+
+def test_prepare_config_multi_input_builds_filepath_list():
+    dt_file = _FakeDataTypeFile(field="dwi", name="dwi.nii.gz")
+    datatype = _FakeDataType(id="dt2", files=[dt_file])
+    dataset_a = _FakeDataset(id="ds-a", datatype=datatype)
+    dataset_b = _FakeDataset(id="ds-b", datatype=datatype)
+    task = _FakeTask(id="task2")
+    app = _FakeAppWithInputs(
+        config={"dwis": {"type": "input", "input_id": "dwi", "file_id": "dwi"}},
+        inputs=[_FakeAppInputField(field="dwi", multi=True)],
+    )
+
+    result = _prepare_config(
+        {}, task, {"dwi": [dataset_a, dataset_b]}, datatypes={"dt2": datatype}, app=app
+    )
+
+    assert result["dwis"] == ["../task2/ds-a/dwi.nii.gz", "../task2/ds-b/dwi.nii.gz"]
+
+
+class _FakeDatasetWithTags:
+    def __init__(self, id, datatype_tags):
+        self.id = id
+        self.datatype_tags = datatype_tags
+
+
+class _FakeAppInputWithTags:
+    def __init__(self, datatype_tags):
+        self.datatype_tags = datatype_tags
+
+
+def test_validate_datatype_tags_does_not_crash_on_real_tags():
+    dataset = _FakeDatasetWithTags(
+        id="ds1",
+        datatype_tags=[
+            DataTypeTag(name="acpc_aligned", negate=False),
+            DataTypeTag(name="preprocessed", negate=False),
+        ],
+    )
+    app_input = _FakeAppInputWithTags(datatype_tags=[DataTypeTag(name="preprocessed", negate=False)])
+
+    _validate_datatype_tags("anat", dataset, app_input)  # should not raise
+
+
+def test_validate_datatype_tags_rejects_missing_required_tag():
+    dataset = _FakeDatasetWithTags(id="ds1", datatype_tags=[DataTypeTag(name="preprocessed", negate=False)])
+    app_input = _FakeAppInputWithTags(datatype_tags=[DataTypeTag(name="acpc_aligned", negate=False)])
+
+    try:
+        _validate_datatype_tags("anat", dataset, app_input)
+        assert False, "expected ValueError for missing required tag"
+    except ValueError:
+        pass
+
+
+def test_validate_datatype_tags_rejects_forbidden_tag_present():
+    dataset = _FakeDatasetWithTags(id="ds1", datatype_tags=[DataTypeTag(name="preprocessed", negate=False)])
+    app_input = _FakeAppInputWithTags(datatype_tags=[DataTypeTag(name="preprocessed", negate=True)])
+
+    try:
+        _validate_datatype_tags("dwi", dataset, app_input)
+        assert False, "expected ValueError for forbidden tag present"
+    except ValueError:
+        pass
