@@ -23,6 +23,7 @@ def dataset_query(
     metadata=None,
     search=None,
     task=None,
+    find=None,
     skip=0,
     limit=100,
     auth=None,
@@ -80,6 +81,9 @@ def dataset_query(
     if metadata:
         for k, v in metadata.items():
             query["meta." + k] = v
+
+    if find:
+        query.update(find)
 
     url = services["warehouse"] + "/dataset"
     res = requests.get(
