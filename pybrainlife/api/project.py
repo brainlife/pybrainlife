@@ -100,6 +100,7 @@ class Project:
 
     stats: ProjectStats
 
+    creator: str
     admins: List[str]
     members: List[str]
     guests: List[str]
@@ -123,6 +124,7 @@ class Project:
         data["description"] = data.get("desc", "")
         data["has_public_resource"] = not data.get("noPublicResource", False)
         data["stats"] = ProjectStats.normalize(data["stats"])
+        data["creator"] = data["user_id"]
         return Project(**data)
 
 

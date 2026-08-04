@@ -17,7 +17,7 @@ logger = logging.getLogger("pybrainlife.cli")
 
 def main():
 
-    main_parser = argparse.ArgumentParser(add_help=False)
+    main_parser = argparse.ArgumentParser(add_help=True)
     main_parser.add_argument("-V", "--version", action="version", version=__version__)
     main_parser.add_argument("-H", "--host", help="Brainlife host", default=host)
     main_parser.add_argument("-q", "--quiet", help="quiet", default=False, action="store_true")

@@ -320,7 +320,7 @@ def app_query(
         url,
         params={
             "find": json.dumps(query),
-            "sort": "name",
+            "sort": "-stats.requested",
             "skip": skip,
             "limit": limit,
         },
@@ -469,8 +469,8 @@ class App:
         data["inputs"] = AppInputField.normalize(data["inputs"])
         data["outputs"] = AppOutputField.normalize(data["outputs"])
         data["config"] = data["config"]
-        data["github_branch"] = data["github_branch"]
-        data["github"] = data["github"]
+        data["github_branch"] = data.get("github_branch", "main")
+        data["github"] = data.get("github")
         return App(**data)
 
 

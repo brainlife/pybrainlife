@@ -4,7 +4,7 @@ import tarfile
 import logging
 import requests
 from typing import List, Callable, Union
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 
 from ...api.project import Project
 from ...api.datatype import DataType, DataTypeTag
@@ -121,3 +121,18 @@ def upload_dataset(
         datasets = task_wait_dataset(task.id)
 
     return datasets
+
+
+@contextmanager
+def download_dataset(id):
+    res = requests.get(
+        f"{services['warehouse']}/dataset/download/{id}",
+        headers=auth_header(), stream=True
+    )
+
+    api_error(res)
+
+    try:
+        yield res
+    finally:
+        res.close()
