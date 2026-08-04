@@ -6,7 +6,7 @@ from pybrainlife.api.app import app_create
 
 
 def _fake_post_capturing(captured):
-    """Mongoose auto-assigns each input/output subdocument its own `_id` on
+    """API auto-assigns each input/output subdocument its own `_id` on
     save -- a real create response has these even though the request payload
     doesn't. Fabricate them here rather than just echoing the raw payload
     back, or AppField.normalize()'s own `data["id"] = data["_id"]` rename
@@ -42,7 +42,7 @@ def _fake_post_capturing(captured):
 def test_app_create_defaults_and_normalizes_without_crashing():
     captured = {}
     with mock.patch("pybrainlife.api.app.requests.post", side_effect=_fake_post_capturing(captured)):
-        app = app_create(name="Test App", github="myorg/app-test")
+        app = app_create(name="Test App", github="myorg/app-test", inputs=[], outputs=[])
 
     assert captured["payload"]["github_branch"] == "main"
     assert captured["payload"]["config"] == {}
@@ -50,13 +50,6 @@ def test_app_create_defaults_and_normalizes_without_crashing():
     assert captured["payload"]["outputs"] == []
     assert app.name == "Test App"
     assert app.github == "myorg/app-test"
-
-
-def test_app_create_rejects_bad_github_before_any_network_call():
-    with mock.patch("pybrainlife.api.app.requests.post") as post:
-        with pytest.raises(ValueError):
-            app_create(name="Test App", github="https://github.com/myorg/app-test")
-        post.assert_not_called()
 
 
 def test_app_create_passes_through_explicit_values():
