@@ -474,19 +474,6 @@ class App:
         return App(**data)
 
 
-def _validate_github_org_repo(github: str) -> None:
-    """The warehouse `github` field is an "org/repo" pair, not a URL -- the
-    brainlife.io registration form explicitly warns against pasting a full
-    GitHub URL there. Catch that mistake before it reaches the server."""
-    if github.startswith("http://") or github.startswith("https://") or "github.com" in github:
-        raise ValueError(
-            f"github={github!r} looks like a full URL. This field wants "
-            "'org/repo' only (e.g. 'myorg/app-myapp'), not the full GitHub URL."
-        )
-    if github.count("/") != 1 or not all(github.split("/")):
-        raise ValueError(f"github={github!r} must be exactly 'org/repo'.")
-
-
 def app_create(
     name, github, github_branch=None, desc=None, tags=None, avatar=None,
     projects=None, admins=None, retry=None, doi=None, config=None,
@@ -517,12 +504,10 @@ def app_create(
     response -- which Mongoose does not guarantee against for an unset field --
     would crash this function's own return path instead of the caller's.
     """
-    _validate_github_org_repo(github)
-
     data = {
         "name": name,
         "github": github,
-        "github_branch": github_branch or "master",
+        "github_branch": github_branch or "main",
         "config": config if config is not None else {},
         "inputs": inputs if inputs is not None else [],
         "outputs": outputs if outputs is not None else [],
