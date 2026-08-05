@@ -474,6 +474,19 @@ class App:
         return App(**data)
 
 
+def _resolve_preferred_resource_id(resource_id: str, auth=None) -> str:
+    """resource_query() returns a list (same convention as every other _query
+    function here) -- amaretti's preferred_resource_id wants a single
+    resource id string, not the whole list of Resource objects. Confirmed
+    against the Node `bl` CLI's own bl-app-run.js, which does this exact same
+    single-id extraction (`resource = userResource._id`) before submitting;
+    app_run() used to assign the raw list here instead."""
+    resources = resource_query(id=resource_id, auth=auth)
+    if not resources:
+        raise Exception(f"Resource {resource_id} not found")
+    return resources[0].id
+
+
 def _validate_github_org_repo(github: str) -> None:
     """The warehouse `github` field is an "org/repo" pair, not a URL -- the
     brainlife.io registration form explicitly warns against pasting a full
@@ -659,10 +672,7 @@ def app_run(
     }
 
     if resource_id:
-        resource = resource_query(id=resource_id, auth=auth)
-        if not resource:
-            raise Exception(f"Resource {resource_id} not found")
-        submission_params["preferred_resource_id"] = resource
+        submission_params["preferred_resource_id"] = _resolve_preferred_resource_id(resource_id, auth=auth)
 
     task = task_run_app(submission_params)
     return task

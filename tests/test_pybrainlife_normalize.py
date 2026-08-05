@@ -32,7 +32,13 @@ against a live brainlife.io project:
    DataTypeTag objects, which have no __hash__ (a plain, unfrozen dataclass)
    -- raising TypeError on any dataset that actually carries a datatype tag
    (only missed by earlier testing because the first dataset tried had none).
+6. app_run()'s resource_id handling assigned the *whole list* resource_query()
+   returns to `preferred_resource_id`, instead of a single resource id string
+   -- confirmed wrong against the Node `bl` CLI's own bl-app-run.js, which
+   extracts a single id (`resource = userResource._id`) before submitting.
 """
+
+from unittest import mock
 
 from pybrainlife.api.project import Project
 from pybrainlife.api.app import (
@@ -40,9 +46,11 @@ from pybrainlife.api.app import (
     AppOutputField,
     _prepare_app_config,
     _prepare_config,
+    _resolve_preferred_resource_id,
     _validate_datatype_tags,
 )
 from pybrainlife.api.datatype import DataTypeTag
+from pybrainlife.api.resource import Resource
 
 
 def test_project_normalize_missing_desc_does_not_raise():
@@ -279,3 +287,46 @@ def test_validate_datatype_tags_rejects_forbidden_tag_present():
         assert False, "expected ValueError for forbidden tag present"
     except ValueError:
         pass
+
+
+class _FakeResource:
+    def __init__(self, id):
+        self.id = id
+
+
+def test_resolve_preferred_resource_id_returns_single_string():
+    with mock.patch(
+        "pybrainlife.api.app.resource_query",
+        return_value=[_FakeResource("671078f56c9e5e0a511d9d09")],
+    ):
+        result = _resolve_preferred_resource_id("671078f56c9e5e0a511d9d09")
+
+    assert result == "671078f56c9e5e0a511d9d09"
+    assert isinstance(result, str)
+
+
+def test_resolve_preferred_resource_id_raises_on_no_match():
+    with mock.patch("pybrainlife.api.app.resource_query", return_value=[]):
+        try:
+            _resolve_preferred_resource_id("nonexistent")
+            assert False, "expected Exception for no matching resource"
+        except Exception:
+            pass
+
+
+def test_resource_normalize_missing_admins_does_not_raise():
+    """A real resource document can come back with no `admins` key at all --
+    Resource.normalize() used to require it outright via Resource(**data),
+    the same missing-field crash already found and fixed for storage/desc
+    elsewhere. Confirmed against a live resource_query() call after fixing."""
+    data = {
+        "_id": "67d20dcab28568ddad17d1d1",
+        "user_id": "1662",
+        "name": "Lonestar6-gpu-h100-gamorosino",
+        # no "admins" key
+    }
+
+    resource = Resource.normalize(data)
+
+    assert resource.admins == []
+    assert resource.name == "Lonestar6-gpu-h100-gamorosino"

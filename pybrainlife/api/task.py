@@ -245,6 +245,72 @@ def task_wait(id, wait=3, auth=None):
         time.sleep(wait)
 
 
+def task_rerun(task_id, remove_date=None, auth=None):
+    """Reset a task's status back to "requested" so amaretti's scheduler
+    re-executes it -- `PUT /task/rerun/:task_id`. No client (neither this
+    library nor the Node `bl` CLI) exposed this before; found by reading
+    amaretti's actual server source (api/controllers/task.js), the same way
+    every other undocumented endpoint in this library was found.
+
+    Retrying the *specific* task that actually failed (often a validator/
+    archiver sub-task, found via a failed dataset's own `prov.task_id` --
+    see dataset_query(task=...)) is far cheaper than resubmitting an entire
+    app_run() from scratch, since it skips re-running whatever already
+    finished successfully upstream.
+
+    Known gap this does NOT solve: dataset finalization on a task rerun is
+    an internal amaretti->warehouse callback (POST/PUT /dataset, gated behind
+    a service-only secret, not a normal user JWT) -- if a dataset object
+    already exists in a "failed" state for this task, a successful rerun can
+    complete without ever updating that dataset to "stored". Always verify
+    the dataset itself reached "stored" after a rerun, not just that the task
+    reports "finished" -- see classify_task_failure() and the
+    braise-task-recover skill's retry-then-fallback-to-full-resubmission
+    logic, which exists specifically because of this gap.
+    """
+    data = {}
+    if remove_date is not None:
+        data["remove_date"] = remove_date
+
+    res = requests.put(
+        services["amaretti"] + f"/task/rerun/{task_id}",
+        json=data,
+        headers=auth_header(auth),
+    )
+    api_error(res)
+    return res.json()
+
+
+TRANSIENT_FAILURE_PATTERNS = (
+    "no resource currently available",
+    "mkdir",
+    "timeout",
+    "timed out",
+    "econnreset",
+    "econnrefused",
+    "enospc",
+    "no space left",
+    "disk",
+    "connection reset",
+    "connection refused",
+)
+
+
+def classify_task_failure(status_msg: str) -> bool:
+    """Best-effort classification of a task's status_msg: does this look like
+    a transient infrastructure hiccup (storage/network/scheduling), worth
+    retrying, or something else (a real bug, bad input, a genuine computation
+    error) that a retry cannot fix and should be surfaced immediately instead?
+    Deliberately conservative -- an unrecognized message is treated as NOT
+    transient, since retrying a real failure wastes time and risks masking
+    an actual problem rather than fixing a fluke.
+    """
+    if not status_msg:
+        return False
+    lowered = status_msg.lower()
+    return any(pattern in lowered for pattern in TRANSIENT_FAILURE_PATTERNS)
+
+
 def task_product_query(id, auth=None):
     res = requests.get(
         services["amaretti"] + "/task/product",
