@@ -44,7 +44,11 @@ class Resource:
     id: str
     user_id: str
     name: str
-    admins: List[str]
+    # Optional (not just List[str] as a type -- needs an actual default): a
+    # real resource document can come back with no `admins` key at all, and
+    # normalize() used to require it outright via Resource(**data), the same
+    # missing-field crash already found and fixed for storage/desc elsewhere.
+    admins: List[str] = field(default_factory=list)
     active: bool = True
     avatar: Optional[str] = None
     citation: Optional[str] = None
@@ -72,6 +76,7 @@ class Resource:
         if isinstance(data, list):
             return [Resource.normalize(d) for d in data]
         data["id"] = data["_id"]
+        data["admins"] = data.get("admins", [])
         return Resource(**data)
 
 

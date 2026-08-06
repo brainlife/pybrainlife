@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Optional
 import requests
 
@@ -85,3 +86,15 @@ def login(username, password, ldap=False, ttl=7) -> str:
 
     jwt = res.json()["jwt"]
     return jwt
+
+
+def refresh(ttl=1, auth=None) -> str:
+    url = services["auth"] + "/refresh"
+    res = requests.post(
+        url,
+        json={"ttl": 1000 * 60 * 60 * 24 * ttl},
+        headers=auth_header(auth),
+    )
+    api_error(res)
+    new_jwt = res.json()["jwt"]
+    return new_jwt

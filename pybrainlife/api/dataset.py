@@ -135,14 +135,28 @@ class Dataset:
     tags: List[DataTypeTag]
 
     description: str
-    storage: str
     size: Optional[int]
 
     status: str
     created_at: datetime
     removed: bool
 
+    # Optional (not just Optional[str] as a type -- needs an actual default):
+    # only set once a dataset has finished archiving. A dataset queried while
+    # still `status == "storing"` genuinely has no storage backend assigned
+    # yet, and normalize() used to require this key outright, crashing on any
+    # dataset caught mid-archive instead of just reporting its status.
+    storage: Optional[str] = None
     metadata: Dict = field(default_factory=dict)
+
+    # Neither of these was exposed at all before -- every prior use of
+    # provenance/failure-diagnosis in this codebase had to fall back to a raw
+    # HTTP request instead of the Dataset object, which defeats the point of
+    # having one. `prov.task_id` traces a dataset back to the specific task
+    # that produced it (often a validator/archiver sub-task, not the parent
+    # compute task); `status_msg` is what actually explains a "failed" status.
+    prov: Dict = field(default_factory=dict)
+    status_msg: Optional[str] = None
 
     @overload
     @staticmethod
@@ -157,11 +171,14 @@ class Dataset:
         if isinstance(data, list):
             return [Dataset.normalize(d) for d in data]
         data["id"] = data["_id"]
-        data["description"] = data["desc"]
+        data["description"] = data.get("desc", "")
         data["metadata"] = data["meta"]
         data["datatype"] = data["datatype"]
         data["datatype_tags"] = DataTypeTag.normalize(data["datatype_tags"])
         data["tags"] = DataTypeTag.normalize(data["tags"])
         data["created_at"] = data["create_date"]
         data["size"] = data.get("size", None)
+        data["storage"] = data.get("storage", None)
+        data["prov"] = data.get("prov", {}) or {}
+        data["status_msg"] = data.get("status_msg", None)
         return Dataset(**data)
