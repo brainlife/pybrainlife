@@ -89,22 +89,6 @@ def login(username, password, ldap=False, ttl=7) -> str:
 
 
 def refresh(ttl=1, auth=None) -> str:
-    """Refresh the current JWT.
-
-    Brainlife issues group-membership claims into the JWT at login/refresh
-    time, not live -- so an operation that depends on a just-added group
-    (e.g. creating a task instance in a project you just created via
-    project_create()) fails with "not member of the group you have
-    specified" until a fresh token is obtained. The Node `bl` CLI calls its
-    own equivalent (util.refresh()) right after `bl project create` for
-    exactly this reason; this mirrors that, including persisting the new
-    token to the same ~/.config/<host>/.jwt file the Node CLI uses, so both
-    stay in sync.
-
-    When `auth` is an explicit ephemeral token (not the global session set via
-    set_auth()), only that caller's in-memory token is refreshed and
-    returned -- the shared on-disk file and global auth are left untouched.
-    """
     url = services["auth"] + "/refresh"
     res = requests.post(
         url,
@@ -113,13 +97,4 @@ def refresh(ttl=1, auth=None) -> str:
     )
     api_error(res)
     new_jwt = res.json()["jwt"]
-
-    if auth is None:
-        set_auth(new_jwt)
-        jwt_path = os.path.expanduser(f"~/.config/{get_host()}/.jwt")
-        os.makedirs(os.path.dirname(jwt_path), mode=0o700, exist_ok=True)
-        with open(jwt_path, "w") as f:
-            f.write(new_jwt)
-        os.chmod(jwt_path, 0o600)
-
     return new_jwt

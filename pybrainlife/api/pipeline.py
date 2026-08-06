@@ -66,8 +66,8 @@ class Rule:
         if isinstance(data, list):
             return [Rule.normalize(d) for d in data]
         data["id"] = data["_id"]
-        data["project"] = Project.normalize(data["project"]) if isinstance(data.get("project"), dict) else Project(data["project"])
-        data["app"] = App.normalize(data["app"]) if isinstance(data.get("app"), dict) else data.get("app")
+        data["project"] = Project.normalize(data["project"]) if isinstance(data.get("project"), dict) else data["project"]
+        data["app"] = App.normalize(data["app"]) if isinstance(data.get("app"), dict) else data["app"]
         data["archive"] = {
             k: RuleArchive.normalize(v)
             for k, v in data.get("archive", {}).items()
@@ -111,3 +111,112 @@ def pipeline_fetch(id, auth=None) -> Rule:
     if not rules:
         raise Exception(f"Rule {id} not found")
     return rules[0]
+
+
+def pipeline_create(
+    project: Project,
+    app: App,
+    name: str = "",
+    config: Optional[Dict] = None,
+    branch: Optional[str] = None,
+    active: bool = True,
+    subject_match: str = "",
+    session_match: str = "",
+    extra_datatype_tags: Optional[Dict] = None,
+    input_dataset_tags: Optional[Dict] = None,
+    input_selection: Optional[Dict] = None,
+    input_multicount: Optional[Dict] = None,
+    input_project_override: Optional[Dict] = None,
+    input_subject: Optional[Dict] = None,
+    input_session: Optional[Dict] = None,
+    input_tags: Optional[Dict] = None,
+    output_tags: Optional[Dict] = None,
+    archive: Optional[Dict[str, Union[RuleArchive, Dict]]] = None,
+    auth=None,
+) -> Rule:
+    config = config or {}
+
+    app_config_keys = {
+        key for key, spec in app.config.items() if spec.get("type") != "input"
+    }
+    unknown_config = set(config) - app_config_keys
+    if unknown_config:
+        raise ValueError(
+            f"Unknown config keys for app {app.name}: {sorted(unknown_config)}. "
+            f"Expected one of: {sorted(app_config_keys)}"
+        )
+
+    app_input_fields = {inp.field for inp in app.inputs}
+    app_output_fields = {out.field for out in app.outputs}
+
+    input_keyed = {
+        "extra_datatype_tags": extra_datatype_tags,
+        "input_dataset_tags": input_dataset_tags,
+        "input_selection": input_selection,
+        "input_multicount": input_multicount,
+        "input_tags": input_tags,
+    }
+    for param_name, value in input_keyed.items():
+        if not value:
+            continue
+        unknown = set(value) - app_input_fields
+        if unknown:
+            raise ValueError(
+                f"Unknown input fields in {param_name} for app {app.name}: "
+                f"{sorted(unknown)}. Expected one of: {sorted(app_input_fields)}"
+            )
+
+    output_keyed = {
+        "output_tags": output_tags,
+        "archive": archive,
+    }
+    for param_name, value in output_keyed.items():
+        if not value:
+            continue
+        unknown = set(value) - app_output_fields
+        if unknown:
+            raise ValueError(
+                f"Unknown output fields in {param_name} for app {app.name}: "
+                f"{sorted(unknown)}. Expected one of: {sorted(app_output_fields)}"
+            )
+
+    merged_config = {
+        key: spec.get("default")
+        for key, spec in app.config.items()
+        if spec.get("type") != "input"
+    }
+    merged_config.update(config)
+
+    normalized_archive = {
+        key: {"do": ra.do, "desc": ra.desc}
+        for key, ra in (
+            (k, RuleArchive.normalize(v)) for k, v in (archive or {}).items()
+        )
+    }
+
+    payload = {
+        "project": project.id,
+        "app": app.id,
+        "name": name,
+        "branch": branch if branch is not None else app.github_branch,
+        "active": active,
+        "config": merged_config,
+        "subject_match": subject_match,
+        "session_match": session_match,
+        "extra_datatype_tags": extra_datatype_tags or {},
+        "input_dataset_tags": input_dataset_tags or {},
+        "input_selection": input_selection or {},
+        "input_multicount": input_multicount or {},
+        "input_project_override": input_project_override or {},
+        "input_subject": input_subject or {},
+        "input_session": input_session or {},
+        "input_tags": input_tags or {},
+        "output_tags": output_tags or {},
+        "archive": normalized_archive,
+    }
+
+    url = get_service("warehouse") + "/rule"
+    res = requests.post(url, json=payload, headers={**auth_header(auth)})
+    api_error(res)
+
+    return Rule.normalize(res.json())

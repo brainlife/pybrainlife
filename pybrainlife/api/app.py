@@ -320,7 +320,7 @@ def app_query(
         url,
         params={
             "find": json.dumps(query),
-            "sort": "name",
+            "sort": "-stats.requested",
             "skip": skip,
             "limit": limit,
         },
@@ -469,8 +469,8 @@ class App:
         data["inputs"] = AppInputField.normalize(data["inputs"])
         data["outputs"] = AppOutputField.normalize(data["outputs"])
         data["config"] = data["config"]
-        data["github_branch"] = data["github_branch"]
-        data["github"] = data["github"]
+        data["github_branch"] = data.get("github_branch", "main")
+        data["github"] = data.get("github")
         return App(**data)
 
 
@@ -487,34 +487,21 @@ def _resolve_preferred_resource_id(resource_id: str, auth=None) -> str:
     return resources[0].id
 
 
-def _validate_github_org_repo(github: str) -> None:
-    """The warehouse `github` field is an "org/repo" pair, not a URL -- the
-    brainlife.io registration form explicitly warns against pasting a full
-    GitHub URL there. Catch that mistake before it reaches the server."""
-    if github.startswith("http://") or github.startswith("https://") or "github.com" in github:
-        raise ValueError(
-            f"github={github!r} looks like a full URL. This field wants "
-            "'org/repo' only (e.g. 'myorg/app-myapp'), not the full GitHub URL."
-        )
-    if github.count("/") != 1 or not all(github.split("/")):
-        raise ValueError(f"github={github!r} must be exactly 'org/repo'.")
-
 
 def app_create(
-    name, github, github_branch=None, desc=None, tags=None, avatar=None,
-    projects=None, admins=None, retry=None, doi=None, config=None,
-    inputs=None, outputs=None, auth=None,
+    name, github, inputs, outputs,
+    github_branch=None, description=None, tags=None, avatar=None,
+    projects=None, admins=None, doi=None, config=None,
+    auth=None,
 ) -> "App":
-    """Register a new brainlife app -- POST /app (see warehouse's
-    api/controllers/app.js for the authoritative field list; there is no
-    dedicated app-registration endpoint documented anywhere else, and neither
-    this library nor the Node `bl` CLI exposed one before this).
+    """Register a new brainlife app.
 
     `inputs`/`outputs` are the raw wire-format lists this endpoint expects --
     each entry's `datatype` must already be a resolved datatype id (e.g. from
     `datatype_query(name=...)`), not a human-readable name; resolving names is
     left to the caller (see the compound/script layer for a friendlier CLI
-    that does this for you). Shapes, per the warehouse Mongoose schema:
+    that does this for you).
+    Schemas:
       inputs:  [{id, desc, datatype, datatype_tags[], optional, includes, multi, advanced}]
       outputs: [{id, desc, datatype, datatype_tags[], datatype_tags_pass,
                  output_on_root, files, archive}]
@@ -522,26 +509,17 @@ def app_create(
     Registering an app is more public than creating a project: with no
     `projects` restriction, the app is visible to everyone on brainlife.io by
     default, not just your own team.
-
-    `github_branch`/`config`/`inputs`/`outputs` are always sent (defaulting to
-    "master"/{}/[]/[] respectively) rather than left out when unset: App.normalize()
-    reads all four with direct (non-.get()) dict access, matching the warehouse
-    schema's own field list, so a value genuinely absent from the create
-    response -- which Mongoose does not guarantee against for an unset field --
-    would crash this function's own return path instead of the caller's.
     """
-    _validate_github_org_repo(github)
-
     data = {
         "name": name,
         "github": github,
-        "github_branch": github_branch or "master",
+        "github_branch": github_branch or "main",
         "config": config if config is not None else {},
-        "inputs": inputs if inputs is not None else [],
-        "outputs": outputs if outputs is not None else [],
+        "inputs": inputs,
+        "outputs": outputs,
     }
-    if desc is not None:
-        data["desc"] = desc
+    if description is not None:
+        data["desc"] = description
     if tags is not None:
         data["tags"] = tags
     if avatar is not None:
@@ -550,8 +528,6 @@ def app_create(
         data["projects"] = projects
     if admins is not None:
         data["admins"] = admins
-    if retry is not None:
-        data["retry"] = retry
     if doi is not None:
         data["doi"] = doi
 

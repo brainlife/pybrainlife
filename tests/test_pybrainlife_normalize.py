@@ -58,6 +58,7 @@ def test_project_normalize_missing_desc_does_not_raise():
         "_id": "6a6d2494c8fb994d870651c0",
         "name": "DWI-pilot",
         "group_id": 26042,
+        "user_id": "1662",
         "admins": ["gamorosino"],
         "members": [],
         "guests": [],

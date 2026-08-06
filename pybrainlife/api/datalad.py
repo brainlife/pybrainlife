@@ -18,7 +18,6 @@ def dl_dataset_fetch(id: str, auth=None) -> Optional["DLDataset"]:
     return dataset[0]
 
 
-# TODO fix typing
 def dl_datasets_query(
     id: Optional[str] = None,
     path: Optional[str] = None,
@@ -111,7 +110,7 @@ def dl_dataset_import(dl_dataset: 'DLDataset', project: Project, datatypes: List
     res = requests.post(
         url,
         json={
-            "project": project,
+            "project": project.id,
             "datatypes": [d.id for d in datatypes],
         },
         headers={**auth_header(auth)},
@@ -182,7 +181,6 @@ class Stats:
         return stats
 
 
-# TODO which fields are optional here?
 @hydrate(dl_dataset_fetch)
 @nested_dataclass
 class DLDataset:
@@ -217,7 +215,6 @@ class DatasetMeta:
     session: str
 
 
-# TODO could this be mapped to Dataset? is this a reduced version of Dataset?
 @dataclass
 class Dataset:
     datatype: str
