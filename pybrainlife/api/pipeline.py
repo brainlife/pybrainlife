@@ -5,7 +5,7 @@ from typing import List, Dict, Union, overload, Optional
 from dataclasses import dataclass, field as dcfield
 
 from .app import App
-from .project import Project
+from .project import Project, project_fetch
 from .utils import nested_dataclass, api_error
 from .api import auth_header, get_service
 
@@ -123,7 +123,6 @@ def pipeline_create(
     subject_match: str = "",
     session_match: str = "",
     extra_datatype_tags: Optional[Dict] = None,
-    input_dataset_tags: Optional[Dict] = None,
     input_selection: Optional[Dict] = None,
     input_multicount: Optional[Dict] = None,
     input_project_override: Optional[Dict] = None,
@@ -151,7 +150,6 @@ def pipeline_create(
 
     input_keyed = {
         "extra_datatype_tags": extra_datatype_tags,
-        "input_dataset_tags": input_dataset_tags,
         "input_selection": input_selection,
         "input_multicount": input_multicount,
         "input_tags": input_tags,
@@ -204,7 +202,6 @@ def pipeline_create(
         "subject_match": subject_match,
         "session_match": session_match,
         "extra_datatype_tags": extra_datatype_tags or {},
-        "input_dataset_tags": input_dataset_tags or {},
         "input_selection": input_selection or {},
         "input_multicount": input_multicount or {},
         "input_project_override": input_project_override or {},
@@ -220,3 +217,39 @@ def pipeline_create(
     api_error(res)
 
     return Rule.normalize(res.json())
+
+
+def pipeline_set_order(project: Project, group: Dict, auth=None) -> Dict:
+    """PUT /rule/order/:projectId -- persists the UI's cosmetic grouping/
+    ordering of rules onto `project.pipelines` (a schema-less blob server-side,
+    not a dependency graph -- see build_pipeline_group()). Re-fetches the
+    project first and appends `group` alongside whatever's already there,
+    rather than overwriting `project.pipelines` outright: any existing
+    groups/rules not touched by this call would otherwise be silently
+    destroyed, since the server just replaces the whole field with whatever
+    is PUT here."""
+    current = project_fetch(project.id, auth=auth)
+    existing = current.pipelines
+    if not existing or not isinstance(existing, dict):
+        root = {"type": "group", "items": []}
+    else:
+        root = existing
+        root.setdefault("items", [])
+    root["items"].append(group)
+
+    url = get_service("warehouse") + f"/rule/order/{project.id}"
+    res = requests.put(url, json=root, headers={**auth_header(auth)})
+    api_error(res)
+    return res.json()
+
+
+def build_pipeline_group(name: str, rules: List[Rule]) -> Dict:
+    """A named group of rules, in stage order, for pipeline_set_order() --
+    matches the shape warehouse's own UI writes when a user manually
+    reorders/groups rules (see api/controllers/rule.js's `PUT /order/:projectId`
+    and the `Projects.pipelines` schema comment in warehouse's models.js)."""
+    return {
+        "type": "group",
+        "name": name,
+        "items": [{"type": "rule", "ruleId": rule.id} for rule in rules],
+    }

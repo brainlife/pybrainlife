@@ -1,8 +1,8 @@
 import json
 import requests
-from typing import List, Dict, Union, overload
+from typing import List, Dict, Optional, Union, overload
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .utils import nested_dataclass, is_id, hydrate, api_error
 from .api import auth_header, get_service, refresh
@@ -106,6 +106,7 @@ class Project:
     guests: List[str]
     removed: bool = False
     has_public_resource: bool = False
+    pipelines: Optional[Dict] = None
 
     @overload
     @staticmethod
@@ -120,6 +121,7 @@ class Project:
         if isinstance(data, list):
             return [Project.normalize(d) for d in data]
         data["id"] = data["_id"]
+        data["name"] = data.get("name", "")
         data["group"] = data["group_id"]
         data["description"] = data.get("desc", "")
         data["has_public_resource"] = not data.get("noPublicResource", False)
