@@ -64,6 +64,30 @@ def test_classify_task_failure_rejects_unknown_messages():
     assert classify_task_failure(None) is False
 
 
+def test_classify_task_failure_recognizes_rsync_connection_drops():
+    # Confirmed live, twice independently, both during a reported Jetstream
+    # (brainlife.io's compute resource) instability window.
+    real_rsync_failure = (
+        "Warning: Permanently added 'xfer.brainlife.io,149.165.152.206' (ECDSA) "
+        "to the list of known hosts.\n"
+        "client_loop: send disconnect: Broken pipe\n"
+        "rsync: connection unexpectedly closed (237 bytes received so far) [receiver]\n"
+        "rsync error: error in rsync protocol data stream (code 12) at io.c(226) [receiver=3.1.3]\n"
+        "rsync exit code: 255"
+    )
+    assert classify_task_failure(real_rsync_failure) is True
+    assert classify_task_failure("Connection closed by 149.165.229.5 port 22") is True
+
+
+def test_classify_task_failure_rejects_ancient_removed_task_message():
+    # A task whose status is "removed" (routine multi-year-old cleanup, not a
+    # live failure) leaves this exact message behind -- retrying it is
+    # pointless (the source workdir is long gone) and must never be attempted
+    # automatically. Found live: 1146 of 1155 failed datasets in one real
+    # account's history carried this message, all from tasks 3-5+ years old.
+    assert classify_task_failure("waiting for workdirs to be removed") is False
+
+
 # --- Dataset.normalize(): prov/status_msg were missing entirely -----------
 
 

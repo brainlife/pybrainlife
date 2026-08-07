@@ -293,6 +293,16 @@ TRANSIENT_FAILURE_PATTERNS = (
     "disk",
     "connection reset",
     "connection refused",
+    # rsync/SSH connection drops mid-transfer -- confirmed live, twice,
+    # independently, both during a reported Jetstream (brainlife.io's compute
+    # resource) instability window. Narrowly targets connection loss, not
+    # rsync failures in general -- a real rsync error (bad permissions, quota
+    # exceeded) produces different text than these and is correctly left
+    # unclassified as transient.
+    "rsync error",
+    "connection unexpectedly closed",
+    "broken pipe",
+    "connection closed by",
 )
 
 
