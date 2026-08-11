@@ -39,6 +39,7 @@ class Task:
     id: str
     name: str
     status: str
+    status_text: Optional[str] = None
     config: Dict = field(default_factory=dict)
 
     @overload
@@ -54,6 +55,7 @@ class Task:
         if isinstance(data, list):
             return [Task.normalize(d) for d in data]
         data["id"] = data["_id"]
+        data["status_text"] = data.pop("status_msg", None)
         return Task(**data)
 
 
