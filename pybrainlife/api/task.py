@@ -161,6 +161,24 @@ def task_run_app(config, auth=None):
     return Task.normalize(task)
 
 
+def task_fetch(id, auth=None) -> Optional[Task]:
+    res = requests.get(
+        services["amaretti"] + "/task",
+        params={
+            "find": json.dumps({"_id": id}),
+            "limit": 1,
+        },
+        headers={**auth_header(auth)},
+    )
+
+    api_error(res)
+
+    tasks = Task.normalize(res.json()["tasks"])
+    if len(tasks) == 0:
+        return None
+    return tasks[0]
+
+
 def task_wait_dataset(id, auth=None):
     while True:
         url = services["warehouse"] + "/dataset"
@@ -203,17 +221,8 @@ class TaskProductArchiveFailed(Exception):
 
 def task_wait(id, wait=3, auth=None):
     while True:
-        res = requests.get(
-            services["amaretti"] + "/task",
-            params={
-                "find": json.dumps({"_id": id}),
-            },
-            headers={**auth_header(auth)},
-        )
-        tasks = Task.normalize(res.json()["tasks"])
-        if len(tasks) == 1:
-            task = tasks[0]
-
+        task = task_fetch(id, auth=auth)
+        if task is not None:
             if task.status == "finished":
                 if "_outputs" in task.config:
                     datasets_archive = len(
