@@ -35,8 +35,11 @@ def dataset_query(
             query["_id"] = search
         else:
             query["$or"] = [
-                {"name": {"$regex": search, "$options": "ig"}},
                 {"desc": {"$regex": search, "$options": "ig"}},
+                {"meta.subject": {"$regex": search, "$options": "i"}},
+                {"meta.session": {"$regex": search, "$options": "i"}},
+                {"tags": {"$regex": search, "$options": "i"}},
+                {"datatype_tags": {"$regex": search, "$options": "i"}},
             ]
     else:
         if id:
@@ -82,6 +85,8 @@ def dataset_query(
         for k, v in metadata.items():
             query["meta." + k] = v
 
+    if not find:
+        find = {"removed": False}
     if find:
         query.update(find)
 
