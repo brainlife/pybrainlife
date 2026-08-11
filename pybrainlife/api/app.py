@@ -1,19 +1,20 @@
 from dataclasses import field as dcfield
 import json
 import requests
-from typing import List, Dict, Union, overload
+from typing import List, Dict, Union, Optional, overload
 
 from .utils import nested_dataclass, api_error
 from .resource import resource_query
 from .datatype import datatype_query, DataType, DataTypeTag
-from .dataset import Dataset
 from .api import auth_header, services
 from .project import project_fetch
 from .task import (
     find_or_create_instance,
     stage_datasets,
+    task_fetch,
     task_run_app,
 )
+from types import SimpleNamespace
 from .utils import validate_branch, hydrate
 from .dataset import dataset_query
 from typing import List
@@ -22,15 +23,25 @@ from typing import List
 PUBLIC_RESOURCES_GID = 1
 
 
-def _prepare_config(values, download_task, inputs, datatypes, app):
+def _input_subdir(u_input):
+    # ponytail: falls back to the output id when the source task's _outputs
+    # entry has no subdir (staging tasks name the subdir after the dataset id
+    # anyway); output_on_root outputs would need a no-subdir path instead.
+    return u_input.output.get("subdir", u_input.output["id"])
+
+
+def _prepare_config(values, inputs, datatypes, app):
     """Build an input-type config key's value (a relative path string like
-    "../<stage-task-id>/<dataset-id>/t1.nii.gz" that the app's own script
-    reads directly). Several .id-vs-.field mixups here used to make every
+    "../<source-task-id>/<subdir>/t1.nii.gz" that the app's own script
+    reads directly). Each resolved input carries its own source `.task` and
+    `.output` (_outputs entry) -- the staging task for archived datasets, the
+    referenced previous task for task-output inputs.
+    Several .id-vs-.field mixups here used to make every
     input-type key silently disappear from the submitted config with no
     error: DataTypeFile.normalize() renames the same way AppField.normalize()
     does (semantic name -> .field, internal db id -> .id), so file lookups
     keyed by `.id` never matched a config spec's `file_id` (a semantic name
-    like "t1"). download_task/u_input/user_inputs[0] are Task/Dataset
+    like "t1"). u_input/user_inputs[0] are Dataset
     dataclass instances, not dicts, so `['_id']` subscripting also never
     worked -- and DataTypeFile has no .filename/.dirname attribute at all
     (only .name, which normalize() already resolved to whichever one applies).
@@ -52,14 +63,15 @@ def _prepare_config(values, download_task, inputs, datatypes, app):
                     id_to_file = {file.field: file for file in dtype.files}
                     input_dtype_file = id_to_file.get(config["file_id"])
                     if input_dtype_file:
-                        filepath = f"../{download_task.id}/{u_input.id}/{input_dtype_file.name}"
+                        filepath = f"../{u_input.task.id}/{_input_subdir(u_input)}/{input_dtype_file.name}"
                         result[key].append(filepath)
             else:
-                dtype = datatypes[user_inputs[0].datatype.id]
+                u_input = user_inputs[0]
+                dtype = datatypes[u_input.datatype.id]
                 id_to_file = {file.field: file for file in dtype.files}
                 input_dtype_file = id_to_file.get(config["file_id"])
                 if input_dtype_file:
-                    filepath = f"../{download_task.id}/{user_inputs[0].id}/{input_dtype_file.name}"
+                    filepath = f"../{u_input.task.id}/{_input_subdir(u_input)}/{input_dtype_file.name}"
                     result[key] = filepath
         else:
             result[key] = values.get(key, config.get("default", None))
@@ -120,7 +132,9 @@ def _compile_metadata(app_inputs):
     return meta
 
 
-def _validate_datatype_tags(field: str, dataset: Dataset, app_input: "AppInputField"):
+def _validate_datatype_tags(field: str, dataset, app_input: "AppInputField"):
+    # `dataset` is an archived Dataset or a _task_output_as_dataset() shim --
+    # both expose .id and .datatype_tags (DataTypeTag objects).
     # DataTypeTag has no __hash__ (a plain, unfrozen dataclass), so a set of
     # the objects themselves raises TypeError; the membership checks below
     # compare against plain tag-name strings anyway (via str(tag), which
@@ -202,19 +216,20 @@ def _collect_unique_dataset_ids(app, inputs):
     return dataset_ids
 
 
-def _prepare_inputs_and_subdirs(app, inputs, task):
+def _prepare_inputs_and_subdirs(app, inputs):
     """`input` (an AppInputField) uses `.field` for the app's own semantic
     slot name (e.g. "anat") and `.id` for this field's own internal database
     id (see AppField.normalize()'s rename) -- `inputs` (== app_run()'s
     resolved_inputs) is keyed by that same semantic `.field` name, and
     `input.id` never matches one of those keys, so every branch below used to
-    be dead code (masked by `if input.id in inputs` always being False). Once
-    that's corrected, `input`/`task`/`user_input` also need attribute access
-    instead of dict-style subscripting: they're dataclass instances (AppInputField,
-    Task, Dataset respectively), not dicts, only `output` (drawn from
-    `task.config["_outputs"]`, plain JSON) actually is one.
+    be dead code (masked by `if input.id in inputs` always being False).
+
+    Each resolved input carries its source `.task` (the staging task for
+    archived datasets, a previous app task for task-output inputs) and
+    `.output` (that task's matching `_outputs` entry, plain JSON dict).
+    Returns the `_inputs` list plus a deps_config grouped by source task.
     """
-    subdirs = []
+    deps = {}
     app_inputs = []
 
     for input in app.inputs:
@@ -224,33 +239,46 @@ def _prepare_inputs_and_subdirs(app, inputs, task):
             if value.get("input_id") == input.field
         ]
 
-        if input.field in inputs:
-            for user_input in inputs[input.field]:
-                dataset = next(
-                    (
-                        output
-                        for output in task.config["_outputs"]
-                        if output["dataset_id"] == user_input.id
-                    ),
-                    None,
-                )
-                if dataset:
-                    app_inputs.append(
-                        {
-                            **dataset,
-                            "id": input.field,
-                            "task_id": task.id,
-                            "keys": keys,
-                        }
-                    )
+        for user_input in inputs.get(input.field, []):
+            output = user_input.output
+            app_inputs.append(
+                {
+                    **output,
+                    "id": input.field,
+                    "task_id": user_input.task.id,
+                    "keys": keys,
+                }
+            )
 
-                    if input.includes:
-                        for include in input.includes.split("\n"):
-                            subdirs.append(f"include:{dataset['id']}/{include}")
-                    else:
-                        subdirs.append(dataset["id"])
+            subdir = _input_subdir(user_input)
+            subdirs = deps.setdefault(user_input.task.id, [])
+            if input.includes:
+                for include in input.includes.split("\n"):
+                    subdirs.append(f"include:{subdir}/{include}")
+            else:
+                subdirs.append(subdir)
 
-    return app_inputs, subdirs
+    deps_config = [
+        {"task": task_id, "subdirs": list(dict.fromkeys(subdirs))}
+        for task_id, subdirs in deps.items()
+    ]
+    return app_inputs, deps_config
+
+
+def _task_output_as_dataset(task, output):
+    """Wrap a previous task's `_outputs` entry so it flows through the same
+    datatype/tag validation and input prep as an archived Dataset. `datatype`
+    in `_outputs` is a raw datatype id string and `datatype_tags` a list of
+    plain tag strings (the wire format this same module submits in
+    _prepare_outputs())."""
+    return SimpleNamespace(
+        id=output.get("dataset_id") or f"{task.id}.{output['id']}",
+        datatype=SimpleNamespace(id=output["datatype"]),
+        datatype_tags=DataTypeTag.normalize(output.get("datatype_tags", [])),
+        meta=output.get("meta", {}),
+        task=task,
+        output=output,
+    )
 
 
 def app_query(
@@ -450,7 +478,7 @@ class App:
     config: dict
     github_branch: str
     github: str
-    tags: List[str]
+    tags: Optional[List[str]] = None
 
     @overload
     @staticmethod
@@ -542,6 +570,11 @@ def app_run(
     app_id, project_id, inputs, config, resource_id=None, tags=None, instance_id=None,
     auth=None
 ):
+    """`inputs` maps app input fields to either an archived dataset id or a
+    previous task's output as "<task_id>.<output_id>" (both are plain hex
+    ObjectIds, so the dot is unambiguous). Task-output inputs skip staging
+    entirely -- the new task depends directly on the referenced task, the
+    same way staged datasets depend on their staging task."""
     project = project_fetch(project_id)
     if not project:
         raise Exception(f"Project {project_id} not found")
@@ -563,12 +596,17 @@ def app_run(
     datatypes = {d.id: d for d in datatypes}
     app_inputs = {input.field: input for input in app.inputs}
 
-    referenced_datasets = [id for id in inputs.values()]
-    datasets = dataset_query(ids=referenced_datasets, limit=len(referenced_datasets), auth=auth)
-    datasets = {d.id: d for d in datasets}
+    dataset_inputs = {f: v for f, v in inputs.items() if "." not in v}
+    task_output_inputs = {f: v for f, v in inputs.items() if "." in v}
+
+    datasets = {}
+    referenced_datasets = list(dataset_inputs.values())
+    if referenced_datasets:
+        found = dataset_query(ids=referenced_datasets, limit=len(referenced_datasets), auth=auth)
+        datasets = {d.id: d for d in found}
 
     resolved_inputs = {}
-    for field, dataset_id in inputs.items():
+    for field, dataset_id in dataset_inputs.items():
 
         dataset = datasets.get(dataset_id)
         if not dataset:
@@ -600,14 +638,60 @@ def app_run(
         resolved_inputs[field] = resolved_inputs.get(field, [])
         resolved_inputs[field].append(dataset)
 
+    source_tasks = {}
+    for field, ref in task_output_inputs.items():
+        task_id, _, output_id = ref.partition(".")
+
+        source_task = source_tasks.get(task_id)
+        if source_task is None:
+            source_task = task_fetch(task_id, auth=auth)
+            if not source_task:
+                raise Exception(f"Task {task_id} not found")
+            source_tasks[task_id] = source_task
+
+        output = next(
+            (o for o in source_task.config.get("_outputs", []) if o["id"] == output_id),
+            None,
+        )
+        if not output:
+            raise Exception(
+                f'Task {task_id} has no output "{output_id}" (input {field})'
+            )
+
+        app_input = app_inputs.get(field)
+        if not app_input:
+            raise Exception(f'This my app\'s config does not include "{field}"')
+
+        task_output = _task_output_as_dataset(source_task, output)
+        if task_output.datatype.id != app_input.datatype.id:
+            raise Exception(
+                f"Given input of datatype {task_output.datatype.id} but "
+                f"expected {datatypes[app_input.datatype.id].name} when checking "
+                f"{field}: {ref}"
+            )
+
+        _validate_datatype_tags(field, task_output, app_input)
+
+        resolved_inputs.setdefault(field, []).append(task_output)
+
     _check_missing_inputs(app.inputs, resolved_inputs)
 
     instance = find_or_create_instance(app, project, instance_id)
-    unique_dataset_ids = _collect_unique_dataset_ids(app, inputs)
-    task = stage_datasets(instance.id, unique_dataset_ids)
+    unique_dataset_ids = _collect_unique_dataset_ids(app, dataset_inputs)
+    if unique_dataset_ids:
+        stage_task = stage_datasets(instance.id, unique_dataset_ids)
+        source_tasks[stage_task.id] = stage_task
+        staged_outputs = {
+            o["dataset_id"]: o for o in stage_task.config["_outputs"]
+        }
+        for user_inputs in resolved_inputs.values():
+            for u_input in user_inputs:
+                if getattr(u_input, "task", None) is None:
+                    u_input.task = stage_task
+                    u_input.output = staged_outputs[u_input.id]
 
-    app_input_for_task, app_subdir_for_task = _prepare_inputs_and_subdirs(
-        app, resolved_inputs, task
+    app_input_for_task, deps_config = _prepare_inputs_and_subdirs(
+        app, resolved_inputs
     )
 
     meta = _compile_metadata(app_input_for_task)
@@ -621,12 +705,15 @@ def app_run(
     # no overrides at all) instead.
     config_values = _prepare_app_config(app, config or {})
     prepared_config = _prepare_config(
-        config_values, task, resolved_inputs, datatypes=datatypes, app=app
+        config_values, resolved_inputs, datatypes=datatypes, app=app
     )
     prepared_config.update(
         {
             "_app": app.id,
-            "_tid": task.config["_tid"] + 1,
+            "_tid": max(
+                (t.config.get("_tid", 0) for t in source_tasks.values()), default=0
+            )
+            + 1,
             "_inputs": app_input_for_task,
             "_outputs": app_outputs,
         }
@@ -639,12 +726,7 @@ def app_run(
         "service": app.github,
         "service_branch": app_branch,
         "config": prepared_config,
-        "deps_config": [
-            {
-                "task": task.id,
-                "subdirs": app_subdir_for_task,
-            }
-        ],
+        "deps_config": deps_config,
     }
 
     if resource_id:
