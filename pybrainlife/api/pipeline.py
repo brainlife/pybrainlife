@@ -231,7 +231,7 @@ def pipeline_set_order(project: Project, group: Dict, auth=None) -> Dict:
     current = project_fetch(project.id, auth=auth)
     existing = current.pipelines
     if not existing or not isinstance(existing, dict):
-        root = {"type": "group", "items": []}
+        root = {"type": "group", "name": "", "open": True, "color": "inherit", "items": []}
     else:
         root = existing
         root.setdefault("items", [])
@@ -247,9 +247,14 @@ def build_pipeline_group(name: str, rules: List[Rule]) -> Dict:
     """A named group of rules, in stage order, for pipeline_set_order() --
     matches the shape warehouse's own UI writes when a user manually
     reorders/groups rules (see api/controllers/rule.js's `PUT /order/:projectId`
-    and the `Projects.pipelines` schema comment in warehouse's models.js)."""
+    and the `Projects.pipelines` schema comment in warehouse's models.js).
+
+    `open: true` is required -- without it, the Pipeline Manual Creation UI
+    on brainlife.io renders the group collapsed with no visible way to
+    expand it, hiding every rule inside from view."""
     return {
         "type": "group",
         "name": name,
+        "open": True,
         "items": [{"type": "rule", "ruleId": rule.id} for rule in rules],
     }
