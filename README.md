@@ -6,6 +6,7 @@ This repository contains the python package for collecting, collating, manipulat
 
 ### Contributors
 - Anibal Heinsfeld (anibalsolon@utexas.edu)
+- Gabriele Amorosino (gabriele.amorosino@utexas.edu)
 - Soichi Hayashi (hayashi@utexas.edu)
 - Franco Pestilli (pestilli@utexas.edu)
 
