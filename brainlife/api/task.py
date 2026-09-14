@@ -179,6 +179,27 @@ def task_fetch(id, auth=None) -> Optional[Task]:
     return tasks[0]
 
 
+def task_deps(id, auth=None) -> List[Task]:
+    res = requests.get(
+        services["amaretti"] + "/task",
+        params={"deps_config.task": id},
+        headers={**auth_header(auth)},
+    )
+
+    api_error(res)
+
+    tasks = Task.normalize(res.json()["tasks"])
+    return tasks
+
+def task_products(id, auth=None) -> Dict[str, List[Dict]]:
+    deps = task_deps(id, auth=auth)
+    products = {}
+    for dep in deps:
+        dep_products = task_product_query(dep.id, auth=auth)
+        products[dep.id] = dep_products
+    return products
+
+
 def task_wait_dataset(id, auth=None):
     while True:
         url = services["warehouse"] + "/dataset"
@@ -332,11 +353,12 @@ def classify_task_failure(status_msg: str) -> bool:
     return any(pattern in lowered for pattern in TRANSIENT_FAILURE_PATTERNS)
 
 
-def task_product_query(id, auth=None):
+def task_product_query(id, hardcoded=False, auth=None):
     res = requests.get(
         services["amaretti"] + "/task/product",
         params={
             "ids": [id],
+            "hardcoded": hardcoded,
         },
         headers={**auth_header(auth)},
     )
