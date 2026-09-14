@@ -1,5 +1,3 @@
-[![Abcdspec-compliant](https://img.shields.io/badge/ABCD_Spec-v1.1-green.svg)](https://github.com/soichih/abcd-spec)
-
 # pybrainlife
 This repository contains the python package for collecting, collating, manipulating, analyzing, and visualizing MRI data generated on brainlife.io. Designed to used within the brainlife.io Analysis tab Jupyter notebooks, can be installed as a pypi package to your local machine.
 
@@ -8,6 +6,7 @@ This repository contains the python package for collecting, collating, manipulat
 
 ### Contributors
 - Anibal Heinsfeld (anibalsolon@utexas.edu)
+- Gabriele Amorosino (gabriele.amorosino@utexas.edu)
 - Soichi Hayashi (hayashi@utexas.edu)
 - Franco Pestilli (pestilli@utexas.edu)
 
