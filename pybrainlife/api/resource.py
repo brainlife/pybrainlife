@@ -98,12 +98,23 @@ def resource_create(
     :param envs: Optional key values for service execution.
     :param name: Optional name for the resource instance.
     :param avatar: Optional avatar URL.
-    :param hostname: Optional hostname.
-    :param services: Optional array of services with name and score.
+    :param hostname: Optional hostname (stored under config.hostname --
+        confirmed against amaretti-next's real resourceSchema, which has no
+        top-level `hostname` field at all).
+    :param resource_services: Optional array of {name, score} to enable on
+        this resource (stored under config.services -- same reason as
+        hostname; prefer resource_set_service() to add/update one app on an
+        *existing* resource without re-sending the rest of `config`).
     :param gids: Optional list of group IDs that can use this resource.
     :param active: Optional flag to set the resource as active or inactive.
     :return: A normalized Resource object.
     """
+    config = dict(config)
+    if hostname:
+        config["hostname"] = hostname
+    if resource_services:
+        config["services"] = resource_services
+
     data = {"config": config, "active": active}
     if envs:
         data["envs"] = envs
@@ -111,10 +122,6 @@ def resource_create(
         data["name"] = name
     if avatar:
         data["avatar"] = avatar
-    if hostname:
-        data["hostname"] = hostname
-    if resource_services:
-        data["services"] = services
     if gids:
         data["gids"] = gids
 
@@ -135,20 +142,44 @@ def resource_update(
     resource_services: Optional[List[Dict[str, Any]]] = None,
     gids: Optional[List[int]] = None,
     name: Optional[str] = None,
-    active: Optional[bool] = True,
+    active: Optional[bool] = None,
     auth=None,
 ):
-    data = {"config": config, "active": active}
+    """Update a resource -- PUT /resource/:id.
+
+    amaretti-next's real handler does `db.Resource.update({_id}, {$set:
+    req.body})`: a key *absent* from the body is left completely untouched
+    server-side, but `$set` on `config` itself replaces that whole
+    sub-document wholesale (config is `Schema.Types.Mixed`, no deep merge).
+    So passing `config` here always overwrites every other key already
+    living under the resource's `config` (hostname, ssh_public, services,
+    aws creds, ...) with whatever this call's `config` (plus `hostname`/
+    `resource_services` merged into it) contains -- there is no partial
+    merge. To add or update a single app's score without touching anything
+    else in `config`, use `resource_set_service()` instead, which always
+    fetches the resource's current `config` first.
+
+    `active` defaults to `None` (omitted from the request) rather than
+    `True`, unlike resource_create() -- an update call for an unrelated
+    field must never silently reactivate a resource an admin deliberately
+    deactivated.
+    """
+    data: Dict[str, Any] = {}
+    if config is not None or hostname or resource_services:
+        config = dict(config or {})
+        if hostname:
+            config["hostname"] = hostname
+        if resource_services:
+            config["services"] = resource_services
+        data["config"] = config
+    if active is not None:
+        data["active"] = active
     if envs:
         data["envs"] = envs
     if name:
         data["name"] = name
     if avatar:
         data["avatar"] = avatar
-    if hostname:
-        data["hostname"] = hostname
-    if resource_services:
-        data["services"] = services
     if gids:
         data["gids"] = gids
 
@@ -158,6 +189,69 @@ def resource_update(
     api_error(res)
 
     return res.json()
+
+
+def resource_set_service(id, name: str, score: int = 10, auth=None) -> Resource:
+    """Enable (or update the score of) exactly one app on a resource,
+    touching nothing else -- the safe way to do what brainlife.io's own
+    "Resource > Available Service" UI does, without re-sending the entire
+    resource document (ssh keys, aws_config, admins, gids, stats, ...) the
+    way the browser's own edit form does on every save.
+
+    Always fetches the resource's *current* `config` first and only replaces
+    its `services` list (adding a new `{name, score}` entry, or updating the
+    score of an existing one by exact name match) -- since PUT /resource/:id
+    replaces the whole `config` sub-document wholesale (see resource_update()'s
+    docstring), sending anything less than the full current config here would
+    silently drop every other config key (ssh_public, hostname, username,
+    workdir, aws creds, ...).
+
+    A freshly fetched config's `enc_*` fields (and `aws_config.enc_credentials`)
+    always come back masked as the literal `True` -- confirmed against
+    amaretti-next's own mask_enc(), which every GET /resource response goes
+    through. PUT's handler special-cases exactly that sentinel to mean "keep
+    the real stored value" (see amaretti-next's real router.put('/:id')), so
+    round-tripping a masked config here never touches or exposes any real
+    secret.
+
+    A resource's score for a given app (`config.services[].score`) is read
+    by amaretti's own resource-selection algorithm (resource.js's
+    score_resource()): no entry at all means this resource can't run that
+    app; `score == 0` means the entry exists but is disabled ("score is set
+    to 0.. not running here"); any positive score means enabled, with higher
+    scores preferred when more than one resource can run the same app.
+
+    :param id: resource id.
+    :param name: the app's exact `github` field, "org/reponame" (the same
+        string amaretti matches a task's service against -- see App.github
+        in api/app.py).
+    :param score: 0 to register the app but leave it disabled, otherwise a
+        positive integer (10 is brainlife.io's own convention for "enabled,
+        default preference").
+    """
+    resource = resource_fetch(id, auth=auth)
+    if resource is None:
+        raise Exception(f"Resource {id} not found")
+
+    new_config = dict(resource.config)
+    service_list = [dict(entry) for entry in (new_config.get("services") or [])]
+
+    updated = False
+    for entry in service_list:
+        if entry.get("name") == name:
+            entry["score"] = score
+            updated = True
+            break
+    if not updated:
+        service_list.append({"name": name, "score": score})
+    new_config["services"] = service_list
+
+    url = services["amaretti"] + "/resource/" + id
+    res = requests.put(url, json={"config": new_config}, headers={**auth_header(auth)})
+
+    api_error(res)
+
+    return Resource.normalize(res.json())
 
 
 def resource_delete(id, auth=None):

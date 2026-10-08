@@ -123,6 +123,7 @@ def test_build_pipeline_group_shape():
     assert group == {
         "type": "group",
         "name": "My Pipeline",
+        "open": True,
         "items": [{"type": "rule", "ruleId": "r1"}, {"type": "rule", "ruleId": "r2"}],
     }
 

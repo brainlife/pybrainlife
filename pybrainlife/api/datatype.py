@@ -57,6 +57,73 @@ def datatype_nfetch(ids, auth=None):
     }
 
 
+def datatype_create(
+    name: str,
+    desc: str,
+    admins: Optional[List[str]] = None,
+    files: Optional[List[Dict]] = None,
+    datatype_tags: Optional[List[Dict]] = None,
+    samples: Optional[List[str]] = None,
+    uis: Optional[List[str]] = None,
+    validator: str = "",
+    validator_branch: str = "",
+    readme: Optional[str] = None,
+    group_analysis: bool = False,
+    auth=None,
+) -> "DataType":
+    """POST /datatype -- register a new global brainlife DataType.
+
+    Requires the caller's JWT to carry the warehouse `datatype.create` scope
+    (confirmed against warehouse-next's real api/controllers/datatype.js:
+    that is the *only* gate on creation -- unlike PUT /datatype/:id, there is
+    no admins-membership check on POST). A created datatype is visible to
+    every brainlife.io user immediately, same weight as registering an app.
+
+    `files` entries are plain dicts matching warehouse's own file subschema:
+    `{"id": "t1", "filename": "t1.nii.gz", "required": True, "desc": "..."}`
+    (use `"dirname"` instead of `"filename"` for a directory input, never
+    both -- confirmed against the real validation in
+    warehouse-next's `ui/src/datatypeedit.vue`, which is otherwise the only
+    place these rules are enforced -- the server itself accepts anything).
+    """
+    for f in files or []:
+        file_id = f.get("id", "")
+        if "." in file_id:
+            raise ValueError(f"datatype file id {file_id!r} must not contain '.'")
+        has_filename = bool(f.get("filename"))
+        has_dirname = bool(f.get("dirname"))
+        if has_filename == has_dirname:
+            raise ValueError(
+                f"datatype file {file_id!r} must specify exactly one of filename or dirname"
+            )
+
+    if validator and not validator.startswith("brainlife/validator-"):
+        raise ValueError(f"validator {validator!r} must start with 'brainlife/validator-'")
+
+    payload = {
+        "_id": None,
+        "name": name,
+        "desc": desc,
+        "admins": admins or [],
+        "_bids": "",
+        "datatype_tags": datatype_tags or [],
+        "files": files or [],
+        "samples": samples or [],
+        "uis": uis or [],
+        "validator": validator,
+        "validator_branch": validator_branch,
+        "groupAnalysis": group_analysis,
+    }
+    if readme:
+        payload["readme"] = readme
+
+    url = services["warehouse"] + "/datatype"
+    res = requests.post(url, json=payload, headers={**auth_header(auth)})
+    api_error(res)
+
+    return DataType.normalize(res.json())
+
+
 @nested_dataclass
 class DataTypeFile:
     id: str

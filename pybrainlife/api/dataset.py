@@ -108,6 +108,25 @@ def dataset_fetch(id, auth=None) -> Optional["Dataset"]:
     return datasets[0]
 
 
+def dataset_provenance(id, auth=None) -> Dict:
+    """Full dataset-lineage graph for `id` -- the same {nodes, edges} shape
+    warehouse's web UI exports via its "download provenance" button, and
+    what `GET /dataset/prov/:id` (a public, unauthenticated-capable endpoint)
+    returns directly. Unlike dataset_query()/dataset_fetch(), this walks the
+    real amaretti task chain that produced the dataset, not just the dataset's
+    own record -- still never touches the underlying file/storage backend,
+    only JSON metadata about every task and dataset in its derivation history.
+
+    Returned as a plain dict (not a dataclass) since this is exactly the
+    shape import_pipeline_from_provenance.py already expects when loading a
+    provenance.json from disk -- write this straight to a file with
+    `json.dump()` and it round-trips through that script unmodified."""
+    url = services["warehouse"] + f"/dataset/prov/{id}"
+    res = requests.get(url, headers={**auth_header(auth)})
+    api_error(res)
+    return res.json()
+
+
 def dataset_import(dataset, project, datatypes, auth=None):
     url = services["warehouse"] + f"/datalad/import/${dataset.id}"
     res = requests.post(
