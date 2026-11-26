@@ -85,9 +85,23 @@ bl aimport <folder> --project <id> [options]
 
 At the plan, answer `y` to approve, `N` to stop with nothing written, or `e` to edit it through the engine's `PATCH /plan` (the command prints the address, a session token and an example `curl`). The engine is stopped once the output is validated, before the upload, and on Ctrl-C, `SIGTERM` or `SIGHUP`.
 
-What goes up, only from a `validated` output: each image as an object of its brainlife datatype, after its datatype validator has accepted it on your computer (objects already in the project are skipped); EEG/MEG objects keep their `channels.tsv` (with bad channels marked in the QA viewer); the participants table; the other metadata files as project files under `bids/`. Microscopy reference datasets are streamed chunk by chunk from where they are (the input folder or an https URL) into their objects; nothing is copied to disk. Never uploaded: the input folder, the pseudonym key, the chunk map, `sourcedata/`, and a failed or invalid output.
+What goes up, only from a `validated` output: each image as an object of its brainlife datatype, after its datatype validator has accepted it on your computer (objects already in the project are skipped); EEG/MEG objects keep their `channels.tsv` (with bad channels marked in the QA viewer); the participants table; the other BIDS tables (`phenotype/*.tsv`, `samples.tsv`, sessions and scans tables) as project tables (see `bl table`), their rows linked to subjects and sessions; the other metadata files, tables included, as project files under `bids/`. Microscopy reference datasets are streamed chunk by chunk from where they are (the input folder or an https URL) into their objects; nothing is copied to disk. Never uploaded: the input folder, the pseudonym key, the chunk map, `sourcedata/`, and a failed or invalid output.
 
 Worked examples (MRI, EEG, microscopy): [ezBIDS aimport/EXAMPLES.md](https://github.com/brainlife/ezbids/blob/master/aimport/EXAMPLES.md).
+
+### bl table
+
+A project holds tables besides its data objects: the participants table, BIDS phenotype, samples, sessions and scans tables, and any other table organized like `participants.tsv` (tab-separated, one header line, a `participant_id` column and optionally `session_id`). Each row is linked to its subject and session, so analyses and agents can join tables to the data. Needs a brainlife.io with the `/table` API.
+
+```
+bl table list   -p <project>                                 # tables of the project (participants first)
+bl table get    -p <project> -t <table id|participants> [-o out.tsv] [-j]
+bl table upload -p <project> -n phenotype/bdi [-k phenotype] [--json-sidecar bdi.json] bdi.tsv
+bl table import -p <project> -d <bids folder>                # every BIDS table of a BIDS folder
+bl table remove -p <project> -t <table id>
+```
+
+`upload` replaces a table with the same name. `import` merges the per-subject `sub-*_sessions.tsv` and `*_scans.tsv` files into one `sessions` and one `scans` table (adding `participant_id` and `session_id` columns), and reads column definitions from the `.json` sidecars with BIDS inheritance (a dataset-level `sessions.json` applies to every subject). `participants.tsv` is not a table upload; it goes through the participants API (`bl aimport` does it).
 
 ### Dependencies
 

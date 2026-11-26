@@ -84,7 +84,7 @@ class Stub:
                 if self.command != "HEAD":
                     self.wfile.write(payload)
 
-            do_GET = do_POST = do_PUT = do_PATCH = do_HEAD = _handle
+            do_GET = do_POST = do_PUT = do_PATCH = do_HEAD = do_DELETE = _handle
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), H)
         self.server.daemon_threads = True

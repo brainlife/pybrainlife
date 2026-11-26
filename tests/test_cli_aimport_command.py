@@ -61,6 +61,10 @@ class Case:
         def upload_project_files(headers, project, output_dir, files, api=None):
             rec.update(files=files, output_dir=output_dir)
 
+        def upload_tables(headers, project, bids_dir, api=None, log=None):
+            rec.update(tables_dir=bids_dir)
+            return 0
+
         d = dict(
             Engine=engine_class(self.engine, self.start_error), prompt=self.prompt,
             open_url=lambda u: self.opened.append(u), log=self.out.append, error=self.out.append,
@@ -70,7 +74,7 @@ class Case:
             project_subjects=lambda h, pid, api: {"existing_subjects": ["07"], "existing_sessions": {"07": ["1"]}},
             validate=lambda item, dt: self.validate_result(item),
             upload_datasets=upload_datasets, update_participants=update_participants,
-            upload_project_files=upload_project_files, exit=self.exits.append)
+            upload_project_files=upload_project_files, upload_tables=upload_tables, exit=self.exits.append)
         d.update(over)
         return Deps(**d)
 
@@ -95,6 +99,7 @@ def test_scan_approve_execute_validate_and_upload(tmp_path):
     assert len(c.rec["datasets"]) == 5 and c.rec["tags"] == ["x"]
     assert c.rec["headers"] == {"Authorization": "Bearer a.b.c"}
     assert c.rec["participants"] == 1 and c.rec["output_dir"] == c.bids and "README" in c.rec["files"]
+    assert c.rec["tables_dir"] == c.bids
     assert "https://brainlife.io/project/" + PROJECT["_id"] in c.out
     assert c.engine.stops == 1 and c.prompts == []
 
