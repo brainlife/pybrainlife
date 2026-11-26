@@ -89,6 +89,14 @@ What goes up, only from a `validated` output: each image as an object of its bra
 
 Worked examples (MRI, EEG, microscopy): [ezBIDS aimport/EXAMPLES.md](https://github.com/brainlife/ezbids/blob/master/aimport/EXAMPLES.md).
 
+### bl bids upload
+
+Uploads a BIDS folder that is already converted (for example by ezBIDS) to an existing project: each BIDS object as a data object of its brainlife datatype (objects already in the project are skipped), `participants.tsv`/`.json` to the participants table, and the other BIDS tables (phenotype, samples, sessions, scans) as project tables. ezBIDS's "Send to brainlife" runs it through the `brainlife/app-bids-import` App. Unlike `bl aimport` it does not convert, deface or validate; use `bl aimport` for raw data.
+
+```
+bl bids upload -p <project> [-t <tag>] <bids folder>
+```
+
 ### bl table
 
 A project holds tables besides its data objects: the participants table, BIDS phenotype, samples, sessions and scans tables, and any other table organized like `participants.tsv` (tab-separated, one header line, a `participant_id` column and optionally `session_id`). Each row is linked to its subject and session, so analyses and agents can join tables to the data. Needs a brainlife.io with the `/table` API.

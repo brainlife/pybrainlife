@@ -1,144 +1,75 @@
+"""bl bids upload: upload a BIDS folder that is already converted (e.g. by ezBIDS) to a project.
+
+Each BIDS object becomes a data object of its brainlife datatype (objects already in the project
+are skipped), participants.tsv/json go to the participants table, and the other BIDS tables
+(phenotype, samples, sessions, scans) become project tables. This is what the ezBIDS
+"Send to brainlife" import (brainlife/app-bids-import) runs; it replaces the Node CLI's
+`bl bids upload`.
+"""
+
 import os
-import io
-import json
-import logging
-import tarfile
-import requests
+import sys
 
-from bids.layout import BIDSLayout
-
-from .utils import ensure_auth
-from ..api.project import project_query
-from ..api.task import instance_query, instance_create, task_run, task_wait_dataset, task_wait
-from ..api.api import auth_header, services
-
-
-logger = logging.getLogger("pybrainlife.cli")
+from .aimport import brainlife_api as bl
+from .aimport import upload as uploader
+from .aimport.bids_walker import walk
+from .aimport.command import load_jwt
+from .tables import upload_tables
 
 
 def args(subparser):
-    parser = subparser.add_parser(
-        "data", help="Information about data types available on Brainlife."
-    )
+    parser = subparser.add_parser("bids", help="Upload a BIDS folder to a project.")
     subparsers = parser.add_subparsers(dest="subcommand")
-
-    subparser = subparsers.add_parser("upload", help="Upload data")
-    subparser.add_argument("-p", "--project", help="Project ID", required=True)
-    subparser.add_argument(
-        "-d", "--directory", default=".", help="Root BIDS directory", required=True
-    )
-    subparser.add_argument("-t", "--tag", action="append", help="Dataset tags")
-    subparser.add_argument("-j", "--json", help="Output as JSON", action="store_true")
+    p = subparsers.add_parser("upload", help="Upload a BIDS folder (data objects, participants and tables)")
+    p.add_argument("-p", "--project", help="Project ID", required=True)
+    p.add_argument("-d", "--directory", help="BIDS folder (where dataset_description.json is)")
+    p.add_argument("folder", nargs="?", help="BIDS folder (same as -d)")
+    p.add_argument("-t", "--tag", action="append", default=[], help="Tag every uploaded object (repeatable)")
 
 
-def run(args, unknown):
-    ensure_auth()
+class Deps:
+    """What run() talks to; tests replace any of these."""
 
-    if args.subcommand == "upload":
-        return run_upload(args, unknown)
+    def __init__(self, **kw):
+        self.load_jwt = load_jwt
+        self.api = None
+        self.find_project = bl.project_by_id
+        self.walk = walk
+        self.update_participants = uploader.update_participants
+        self.upload_datasets = uploader.upload_datasets
+        self.upload_tables = upload_tables
+        self.log = print
+        self.error = lambda msg: print(msg, file=sys.stderr, flush=True)
+        for k, v in kw.items():
+            if not hasattr(self, k):
+                raise TypeError("unknown dependency " + k)
+            setattr(self, k, v)
 
 
-def run_upload(args, unknown):
-    layout = BIDSLayout(args.directory)
-
-    tags = args.tag or []
-
-    metadata = {}
-    if args.meta:
-        with open(args.meta) as fp:
-            metadata = json.load(fp)
-    if args.subject:
-        metadata["subject"] = args.subject
-    if args.session:
-        metadata["session"] = args.session
-    if args.run:
-        metadata["run"] = args.run
-        tags += [f"run-{args.run}"]
-
-    project = project_query(args.project)
-    if not project:
-        logger.error(f"No project found for {args.project}")
+def run(args, deps=None):
+    deps = deps or Deps()
+    if args.subcommand != "upload":
+        deps.error('use "bl bids upload -h"')
+        return 2
+    root = args.directory or args.folder
+    if not root or not os.path.isfile(os.path.join(root, "dataset_description.json")):
+        deps.error("bids upload: %s is not a BIDS folder (no dataset_description.json)" % root)
+        return 2
+    try:
+        headers = {"Authorization": "Bearer " + deps.load_jwt()}
+        api = deps.api or bl.default_api()
+        project = deps.find_project(headers, args.project, api)
+        if not project:
+            deps.error("bids upload: project %s not found" % args.project)
+            return 1
+        bids = deps.walk(root)
+        if bids["participants"] or bids["participants_json"]:
+            deps.update_participants(headers, project, bids, api=api, log=deps.log)
+        uploaded, skipped = deps.upload_datasets(headers, project, bids["datasets"], tags=args.tag, api=api, log=deps.log)
+        tables = deps.upload_tables(headers, project, root, api=api, log=deps.log)
+        deps.log("Uploaded %d object(s), skipped %d already in the project, %d table(s)" % (len(uploaded), len(skipped), tables))
+        deps.log("%s/project/%s" % (api.get("main") or "https://brainlife.io", project["_id"]))
+        return 0
+    except Exception as err:
+        deps.error("bids upload: %s" % err)
         return 1
-    else:
-        project = project[0]
-
-    instance_name = f"upload.{project.group}"
-    instances = instance_query(name=instance_name)
-    if instances:
-        instance = instances[0]
-    else:
-        instance = instance_create(instance_name, project=project)
-
-    task = task_run(instance.id, instance_name, "brainlife/app-noop", {})
-    task_wait(task.id)
-
-    stream_fp = io.BytesIO()
-    tar = tarfile.TarFile.open(None, "w|gz", stream_fp)
-
-    for file in datatype.files:
-        if not file.field in files_args:
-            continue
-
-        filepath = getattr(files_args, file.field)
-
-        if file.type == "d" and not os.path.isdir(filepath):
-            logger.error(f"{file.field} is not a directory")
-            return 1
-
-        if file.type == "f" and not os.path.isfile(filepath):
-            logger.error(f"{file.field} is not a file")
-            return 1
-
-        if file.type == "d":
-            filepath = filepath.rstrip("/")
-            for dir, _, files in os.walk(filepath):
-                tardir = dir.replace(filepath, file.name)
-
-                for f in files:
-                    subfilepath = f"{dir}/{f}"
-                    tarsubfilepath = f"{tardir}/{f}"
-                    tar.add(subfilepath, arcname=tarsubfilepath)
-        else:
-            tarfilepath = file.name
-            tar.add(filepath, arcname=tarfilepath)
-
-    tar.close()
-    stream_fp.seek(0)
-
-    res = requests.post(
-        f"{services['amaretti']}/task/upload/{task.id}",
-        params={
-            "p": "upload/upload.tar.gz",
-            "untar": True,
-        },
-        data=stream_fp,
-        headers={**auth_header()},
-    )
-
-    res = requests.post(
-        f"{services['warehouse']}/dataset/finalize-upload",
-        json={
-            "task": task.id,
-            "datatype": datatype.id,
-            "subdir": "upload",
-            "fileids": list(files_args.__dict__.keys()),
-            "datatype_tags": datatype_tags,
-            "meta": metadata,
-            "tags": tags,
-            "desc": description,
-        },
-        headers={**auth_header()},
-    )
-    upload_data = res.json()
-
-    if "validator_task" in upload_data:
-        datasets = task_wait(upload_data["validator_task"]["_id"])
-    else:
-        datasets = task_wait_dataset(task.id)
-
-    if datasets:
-      logger.info("Datasets created:")
-      for dataset in datasets:
-          logger.info(f'{services["main"]}/project/{project.id}#object:{dataset["_id"]}')
-
-    return 0

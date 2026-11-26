@@ -11,6 +11,7 @@ from .datatype import args as datatype_args, run as datatype_run
 from .data import args as data_args, run as data_run
 from .aimport import args as aimport_args, main as aimport_main
 from .table import args as table_args, run as table_run
+from .bids import args as bids_args, run as bids_run
 
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -31,6 +32,7 @@ def main():
     data_args(subparsers)
     aimport_args(subparsers)
     table_args(subparsers)
+    bids_args(subparsers)
 
     args, unknown = main_parser.parse_known_args()
 
@@ -63,6 +65,9 @@ def main():
 
     if args.command == "data":
         sys.exit(data_run(args, unknown))
+
+    if args.command == "bids":
+        sys.exit(bids_run(args))
 
     if args.command == "table":
         sys.exit(table_run(args))
