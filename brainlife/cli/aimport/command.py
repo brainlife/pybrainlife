@@ -20,6 +20,7 @@ from .engine import ENGINE_IMAGE, Engine, EngineError, UsageError, check_folders
 from .objects import RefusedError, apply_plan, micr_datasets, preflight, project_files, local_bytes
 from .plan_table import render_plan, render_result
 from .validators import validate_dataset
+from ..tables import upload_tables
 
 UI_MESSAGE = "--ui needs the brainlife.io/aimport page, which is not available yet"
 README_URL = "https://github.com/brainlife/ezbids/blob/master/aimport/README.md#the-workflow"
@@ -121,6 +122,7 @@ class Deps:
         self.upload_datasets = uploader.upload_datasets
         self.update_participants = uploader.update_participants
         self.upload_project_files = uploader.upload_project_files
+        self.upload_tables = upload_tables
         self.exit = sys.exit
         for k, v in kw.items():
             if not hasattr(self, k):
@@ -400,8 +402,10 @@ def run(opts, deps=None):
         uploaded, skipped = deps.upload_datasets(headers, project, good, tags=opts.get("tag") or [], api=api,
                                                  log=log, chunk_map=chunk_map)
         deps.upload_project_files(headers, project, bids_dir, files, api=api)
-        log("Uploaded %d object(s), skipped %d already in the project, %d project file(s)"
-            % (len(uploaded), len(skipped), len(files)))
+        # phenotype/, sessions, scans, ... also become project tables (rows linked to subjects)
+        tables = deps.upload_tables(headers, project, bids_dir, api=api, log=log)
+        log("Uploaded %d object(s), skipped %d already in the project, %d project file(s), %d table(s)"
+            % (len(uploaded), len(skipped), len(files), tables))
         if blocked:
             error("aimport: %d object(s) failed validation and were not uploaded" % len(blocked))
         log("%s/project/%s" % (api.get("main") or "https://brainlife.io", project["_id"]))
